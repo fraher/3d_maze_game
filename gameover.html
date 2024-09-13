@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Game Over - 3D Maze Game</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Game Over Overlay -->
+    <div id="gameOverOverlay" class="overlay">
+        <div class="overlay-content">
+            <h1>Game Over</h1>
+            <p>Your Score: <span id="finalScore">0</span></p>
+            <button id="restartButton">Restart Game</button>
+        </div>
+    </div>
+
+    <script>
+        // Function to retrieve and display the final score
+        function displayFinalScore() {
+            const finalScore = localStorage.getItem('finalScore') || 0;
+            document.getElementById('finalScore').textContent = finalScore;
+        }
+    
+        // Function to handle the restart button click
+        function handleRestart() {
+            // Clear relevant localStorage items
+            localStorage.removeItem('currentLevel');
+            localStorage.removeItem('score');
+            localStorage.removeItem('finalScore');
+            localStorage.removeItem('victory');
+    
+            // Redirect to the main game page
+            window.location.href = 'index.html';
+        }
+    
+        // Function to check and display Victory message
+        function checkVictory() {
+            const isVictory = localStorage.getItem('victory');
+            if (isVictory === 'true') {
+                document.querySelector('#gameOverOverlay h1').textContent = 'You Win!';
+                document.querySelector('#gameOverOverlay p').textContent = `Final Score: ${localStorage.getItem('finalScore')}`;
+                document.getElementById('restartButton').textContent = 'Play Again';
+            }
+        }
+    
+        // Initialize the page
+        window.onload = function() {
+            displayFinalScore();
+            checkVictory();
+            document.getElementById('restartButton').addEventListener('click', handleRestart);
+        };
+    </script>
+    
+</body>
+</html>

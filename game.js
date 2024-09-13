@@ -1,27 +1,145 @@
 // game.js
 
-// 1. Define the game map
-const map = [
-    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
-    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-    [1,0,1,1,1,0,1,1,1,1,1,1,1,1,0,1],
-    [1,0,1,0,1,0,0,0,0,0,0,0,0,1,0,1],
-    [1,0,1,0,1,0,1,1,1,1,1,1,0,1,0,1],
-    [1,0,1,0,0,0,1,0,0,0,0,1,0,1,0,1],
-    [1,0,1,1,1,1,1,0,1,1,1,1,0,1,0,1],
-    [1,0,0,0,0,0,0,0,1,0,0,0,0,1,0,1],
-    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
-];
-const mapWidth = map[0].length;
-const mapHeight = map.length;
+// Define the current map and its dimensions
+let map = [];
+let mapWidth = 0;
+let mapHeight = 0;
 
-// 2. Initialize the canvas and context
+
+// ====================
+// 1. Define All Levels
+// ====================
+
+// Define 10 levels with unique or similar mazes
+const levels = [
+    // Level 1 - Easy
+    [
+        [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+        [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+        [1,0,1,1,1,0,1,1,1,1,1,1,1,1,0,1],
+        [1,0,1,0,1,0,0,0,0,0,0,0,0,1,0,1],
+        [1,0,1,0,1,0,1,1,1,1,1,1,0,1,0,1],
+        [1,0,1,0,0,0,1,0,0,0,0,1,0,1,0,1],
+        [1,0,1,1,1,1,1,0,1,1,1,1,0,1,0,1],
+        [1,0,0,0,0,0,0,0,1,0,0,0,0,1,0,1],
+        [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+    ],
+    // Level 2
+    [
+        [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+        [1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1],
+        [1,0,1,1,1,1,0,1,0,1,1,1,1,1,0,1],
+        [1,0,1,0,0,1,0,1,0,1,0,0,0,1,0,1],
+        [1,0,1,0,0,1,0,1,0,1,0,1,0,1,0,1],
+        [1,0,1,1,1,1,0,1,0,1,0,1,0,1,0,1],
+        [1,0,0,0,0,0,0,1,0,1,0,1,0,1,0,1],
+        [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+    ],
+    // Level 3
+    [
+        [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+        [1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1],
+        [1,0,1,1,1,1,0,1,0,1,1,1,1,1,0,1],
+        [1,0,1,0,0,1,0,1,0,1,0,0,0,1,0,1],
+        [1,0,1,0,0,1,0,1,0,1,0,1,0,1,0,1],
+        [1,0,1,1,1,1,0,1,0,1,0,1,0,1,0,1],
+        [1,0,0,0,0,0,0,1,0,1,0,1,0,1,0,1],
+        [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+    ],
+    // Levels 4 to 10 - Duplicate Level 3's maze
+    [
+        // Level 4
+        [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+        [1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1],
+        [1,0,1,1,1,1,0,1,0,1,1,1,1,1,0,1],
+        [1,0,1,0,0,1,0,1,0,1,0,0,0,1,0,1],
+        [1,0,1,0,0,1,0,1,0,1,0,1,0,1,0,1],
+        [1,0,1,1,1,1,0,1,0,1,0,1,0,1,0,1],
+        [1,0,0,0,0,0,0,1,0,1,0,1,0,1,0,1],
+        [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+    ],
+    [
+        // Level 5
+        [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+        [1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1],
+        [1,0,1,1,1,1,0,1,0,1,1,1,1,1,0,1],
+        [1,0,1,0,0,1,0,1,0,1,0,0,0,1,0,1],
+        [1,0,1,0,0,1,0,1,0,1,0,1,0,1,0,1],
+        [1,0,1,1,1,1,0,1,0,1,0,1,0,1,0,1],
+        [1,0,0,0,0,0,0,1,0,1,0,1,0,1,0,1],
+        [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+    ],
+    [
+        // Level 6
+        [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+        [1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1],
+        [1,0,1,1,1,1,0,1,0,1,1,1,1,1,0,1],
+        [1,0,1,0,0,1,0,1,0,1,0,0,0,1,0,1],
+        [1,0,1,0,0,1,0,1,0,1,0,1,0,1,0,1],
+        [1,0,1,1,1,1,0,1,0,1,0,1,0,1,0,1],
+        [1,0,0,0,0,0,0,1,0,1,0,1,0,1,0,1],
+        [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+    ],
+    [
+        // Level 7
+        [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+        [1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1],
+        [1,0,1,1,1,1,0,1,0,1,1,1,1,1,0,1],
+        [1,0,1,0,0,1,0,1,0,1,0,0,0,1,0,1],
+        [1,0,1,0,0,1,0,1,0,1,0,1,0,1,0,1],
+        [1,0,1,1,1,1,0,1,0,1,0,1,0,1,0,1],
+        [1,0,0,0,0,0,0,1,0,1,0,1,0,1,0,1],
+        [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+    ],
+    [
+        // Level 8
+        [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+        [1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1],
+        [1,0,1,1,1,1,0,1,0,1,1,1,1,1,0,1],
+        [1,0,1,0,0,1,0,1,0,1,0,0,0,1,0,1],
+        [1,0,1,0,0,1,0,1,0,1,0,1,0,1,0,1],
+        [1,0,1,1,1,1,0,1,0,1,0,1,0,1,0,1],
+        [1,0,0,0,0,0,0,1,0,1,0,1,0,1,0,1],
+        [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+    ],
+    [
+        // Level 9
+        [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+        [1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1],
+        [1,0,1,1,1,1,0,1,0,1,1,1,1,1,0,1],
+        [1,0,1,0,0,1,0,1,0,1,0,0,0,1,0,1],
+        [1,0,1,0,0,1,0,1,0,1,0,1,0,1,0,1],
+        [1,0,1,1,1,1,0,1,0,1,0,1,0,1,0,1],
+        [1,0,0,0,0,0,0,1,0,1,0,1,0,1,0,1],
+        [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+    ],
+    [
+        // Level 10
+        [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+        [1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1],
+        [1,0,1,1,1,1,0,1,0,1,1,1,1,1,0,1],
+        [1,0,1,0,0,1,0,1,0,1,0,0,0,1,0,1],
+        [1,0,1,0,0,1,0,1,0,1,0,1,0,1,0,1],
+        [1,0,1,1,1,1,0,1,0,1,0,1,0,1,0,1],
+        [1,0,0,0,0,0,0,1,0,1,0,1,0,1,0,1],
+        [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+    ]
+];
+
+
+// ========================
+// 2. Initialize the Canvas
+// ========================
+
 const canvas = document.getElementById('gameCanvas');
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 const ctx = canvas.getContext('2d');
 
-// 3. Texture loading with mipmapping
+// ========================
+// 3. Texture Loading
+// ========================
+
 const textures = {
     256: new Image(),
     128: new Image(),
@@ -48,7 +166,10 @@ for (let size in textures) {
     };
 }
 
-// 4. Load sprite images
+// ========================
+// 4. Load Sprite Images
+// ========================
+
 const enemySprite = new Image();
 enemySprite.src = 'textures/enemy.png';
 
@@ -58,7 +179,11 @@ weaponSprite.src = 'textures/weapon.png';
 const swordSprite = new Image();
 swordSprite.src = 'textures/sword.png'; // Ensure this image exists
 
-// 5. Sound Manager using Web Audio API
+// ========================
+// 5. Sound Manager
+// ========================
+
+// Sound Manager using Web Audio API
 class SoundManager {
     constructor() {
         this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -106,31 +231,54 @@ class SoundManager {
 // Instantiate the Sound Manager
 const soundManager = new SoundManager();
 
-// 6. Define the player object
+// ========================
+// 6. Define the Player Object
+// ========================
+
 const player = {
     x: 1.5, // starting x position
     y: 1.5, // starting y position
     dir: 0, // direction the player is facing (in radians)
     fov: Math.PI / 3, // field of view (60 degrees)
-    speed: 0.05, // movement speed
-    turnSpeed: 0.03, // turning speed
+    speed: 0.01, // movement speed
+    turnSpeed: 0.01, // turning speed
     radius: 0.2, // Player's collision radius
     health: 100 // Player's health
 };
 
+// ========================
+// 7. Initialize Game Variables
+// ========================
+
 // Initialize score
-let score = 0;
+let score = parseInt(localStorage.getItem('score')) || 0;
+
+// Initialize level
+let currentLevel = parseInt(localStorage.getItem('currentLevel')) || 1;
+const maxLevel = 10;
 
 // Enemies array
-const enemies = [];
+let enemies = [];
 
-// Enemy definition
+// Weapons array
+let weapons = [];
+
+// Player's weapon
+let playerWeapon = null;
+
+// Game State
+let gameState = 'running'; // 'running', 'gameover', 'levelcomplete', 'victory'
+
+// ========================
+// 8. Define Enemy Class
+// ========================
+
 class Enemy {
-    constructor(x, y) {
+    constructor(x, y, health = 100) {
         this.x = x; // Enemy's position on the map
         this.y = y;
-        this.health = 100; // Enemy's health
-        this.speed = 0.02; // Movement speed
+        this.health = health; // Enemy's health
+        this.speed = 0.01; // Movement speed
         this.alive = true; // Is the enemy alive?
     }
 
@@ -167,41 +315,17 @@ class Enemy {
                 player.health = 0;
                 console.log('Player defeated!');
                 soundManager.playDefeatSound(); // Play defeat sound
-                // Stop the game loop
-                cancelAnimationFrame(gameLoopId);
-                // Display game over message
-                ctx.fillStyle = 'red';
-                ctx.font = '50px Arial';
-                ctx.textAlign = 'center';
-                ctx.fillText('Game Over', canvas.width / 2, canvas.height / 2);
-                return;
+                // Trigger Game Over
+                showGameOver();
             }
         }
     }
 }
 
-// Function to place enemies randomly
-function placeEnemies(numEnemies) {
-    for (let i = 0; i < numEnemies; i++) {
-        let placed = false;
-        while (!placed) {
-            const x = Math.floor(Math.random() * mapWidth);
-            const y = Math.floor(Math.random() * mapHeight);
-            if (map[y][x] === 0 && (Math.abs(x - player.x) > 2 || Math.abs(y - player.y) > 2)) {
-                enemies.push(new Enemy(x + 0.5, y + 0.5));
-                placed = true;
-            }
-        }
-    }
-}
+// ========================
+// 9. Define Weapon Class
+// ========================
 
-// Place 5 enemies
-placeEnemies(5);
-
-// Weapons array
-const weapons = [];
-
-// Weapon definition
 class Weapon {
     constructor(x, y) {
         this.x = x;
@@ -210,11 +334,29 @@ class Weapon {
     }
 }
 
-// Player's weapon
-let playerWeapon = null;
+// ========================
+// 10. Level Management Functions
+// ========================
+
+// Function to place enemies randomly
+function placeEnemies(numEnemies, enemyHealth) {
+    enemies = []; // Reset enemies array
+    for (let i = 0; i < numEnemies; i++) {
+        let placed = false;
+        while (!placed) {
+            const x = Math.floor(Math.random() * mapWidth);
+            const y = Math.floor(Math.random() * mapHeight);
+            if (map[y][x] === 0 && (Math.abs(x - player.x) > 2 || Math.abs(y - player.y) > 2)) {
+                enemies.push(new Enemy(x + 0.5, y + 0.5, enemyHealth));
+                placed = true;
+            }
+        }
+    }
+}
 
 // Function to place weapons randomly
-function placeWeapons(numWeapons) {
+function placeWeaponsFunc(numWeapons) {
+    weapons = []; // Reset weapons array
     for (let i = 0; i < numWeapons; i++) {
         let placed = false;
         while (!placed) {
@@ -228,10 +370,47 @@ function placeWeapons(numWeapons) {
     }
 }
 
-// Place 3 weapons
-placeWeapons(3);
+// Function to load a specific level
+function loadLevel(levelNumber) {
+    if (levelNumber > levels.length) {
+        console.error('Level not defined!');
+        return;
+    }
 
-// 7. Implement the raycasting function with fisheye correction
+    // Set the current map
+    map.splice(0, map.length, ...levels[levelNumber - 1]);
+
+    // Update map dimensions
+    mapHeight = map.length;
+    mapWidth = map[0].length;
+
+    // Increase difficulty: more enemies and higher health
+    const numEnemies = 5 + levelNumber * 2; // Example: starting at 5, increasing by 2 each level
+    const enemyHealth = 100 + levelNumber * 20; // Example: starting at 100, increasing by 20 each level
+
+    placeEnemies(numEnemies, enemyHealth);
+
+    // Increase weapons: optional, can keep constant or increase
+    const numWeapons = 3 + Math.floor(levelNumber / 2); // Example: starting at 3, increasing by 1 every 2 levels
+    placeWeaponsFunc(numWeapons);
+
+    // Reset player position and health
+    player.x = 1.5;
+    player.y = 1.5;
+    player.dir = 0;
+    player.health = 100;
+    score = 0;
+
+    // Store current level and score in Local Storage
+    localStorage.setItem('currentLevel', levelNumber);
+    localStorage.setItem('score', score);
+}
+
+
+// ========================
+// 11. Raycasting Function
+// ========================
+
 function castRays() {
     const numRays = canvas.width;
     const angleStep = player.fov / numRays;
@@ -322,7 +501,10 @@ function castRays() {
     renderSprites(zBuffer);
 }
 
-// 8. Render sprites (enemies and weapons)
+// ========================
+// 12. Render Sprites Function
+// ========================
+
 function renderSprites(zBuffer) {
     const sprites = [];
 
@@ -433,7 +615,10 @@ function renderSprites(zBuffer) {
     });
 }
 
-// 9. Function to draw enemy health indicators
+// ========================
+// 13. Draw Enemy Health Indicators
+// ========================
+
 function drawEnemyHealth(sprite, drawStartX, drawStartY, spriteWidth) {
     const healthBarWidth = spriteWidth;
     const healthBarHeight = 5; // Thickness of the health bar
@@ -458,7 +643,10 @@ function drawEnemyHealth(sprite, drawStartX, drawStartY, spriteWidth) {
     }
 }
 
-// 10. Function to draw the sword in the player's view
+// ========================
+// 14. Draw Sword Function
+// ========================
+
 function drawSword() {
     if (playerWeapon && swordSprite.complete) {
         const swordWidth = 100; // Adjust size as needed
@@ -496,7 +684,10 @@ function drawSword() {
     }
 }
 
-// 11. Handle player movement and attack input
+// ========================
+// 15. Handle Player Input
+// ========================
+
 const keys = {};
 
 window.addEventListener('keydown', function(e) {
@@ -577,7 +768,10 @@ function isWalkable(x, y) {
     );
 }
 
-// 12. Weapon pickup
+// ========================
+// 16. Weapon Pickup Function
+// ========================
+
 function checkWeaponPickup() {
     weapons.forEach(weapon => {
         if (!weapon.pickedUp) {
@@ -594,7 +788,10 @@ function checkWeaponPickup() {
     });
 }
 
-// 13. Attack function
+// ========================
+// 17. Attack Function
+// ========================
+
 function attack() {
     if (!playerWeapon) {
         console.log('No weapon to attack with!');
@@ -657,7 +854,10 @@ function attack() {
     }
 }
 
-// 14. Function to draw the mini-map
+// ========================
+// 18. Mini-Map Function
+// ========================
+
 const miniMapScale = 20; // Scale down the map
 const miniMapX = 20; // X position on the canvas
 const miniMapY = 20; // Y position on the canvas
@@ -702,7 +902,52 @@ function drawMiniMap() {
     });
 }
 
-// 15. Create the game loop
+// ========================
+// 19. Game Over and Level Complete Functions
+// ========================
+
+// Reference to HTML elements
+const gameOverOverlay = document.getElementById('gameOverOverlay');
+const finalScoreSpan = document.getElementById('finalScore');
+const restartButton = document.getElementById('restartButton');
+
+const levelCompleteOverlay = document.getElementById('levelCompleteOverlay');
+const nextLevelSpan = document.getElementById('nextLevel');
+const nextLevelButton = document.getElementById('nextLevelButton');
+
+// Function to show Game Over screen
+function showGameOver() {
+    gameState = 'gameover';
+    // Store the final score in Local Storage
+    localStorage.setItem('finalScore', score);
+    // Redirect to gameover.html
+    window.location.href = 'gameover.html';
+}
+
+// Function to show Level Complete screen
+function showLevelComplete() {
+    gameState = 'levelcomplete';
+    // Store the current score in Local Storage
+    localStorage.setItem('score', score);
+    // Redirect to levelcomplete.html
+    window.location.href = 'levelcomplete.html';
+}
+
+// Function to show Victory screen
+function showVictory() {
+    gameState = 'victory';
+    // Store the final score
+    localStorage.setItem('finalScore', score);
+    // Set a victory flag
+    localStorage.setItem('victory', 'true');
+    // Redirect to gameover.html to display victory message
+    window.location.href = 'gameover.html';
+}
+
+// ========================
+// 20. Game Loop Function
+// ========================
+
 let gameLoopId;
 
 function gameLoop() {
@@ -711,57 +956,85 @@ function gameLoop() {
         return;
     }
 
-    // Debugging logs (can be removed in production)
-    // console.log('Game Loop Iteration Started');
+    if (gameState === 'running') {
+        movePlayer();
 
-    movePlayer();
+        // Update enemies
+        enemies.forEach(enemy => enemy.update());
 
-    // Update enemies
-    enemies.forEach(enemy => enemy.update());
+        // Check for weapon pickup
+        checkWeaponPickup();
 
-    // Check for weapon pickup
-    checkWeaponPickup();
-
-    // Handle sword attack animation
-    if (isAttacking) {
-        attackFrame++;
-        if (attackFrame >= maxAttackFrames) {
-            isAttacking = false; // Reset after animation completes
+        // Handle sword attack animation
+        if (isAttacking) {
+            attackFrame++;
+            if (attackFrame >= maxAttackFrames) {
+                isAttacking = false; // Reset after animation completes
+            }
         }
+
+        // Check if all enemies are defeated
+        const allEnemiesDefeated = enemies.every(enemy => !enemy.alive);
+        if (allEnemiesDefeated) {
+            if (currentLevel < maxLevel) {
+                showLevelComplete();
+            } else {
+                // All levels completed
+                showVictory();
+            }
+        }
+
+        // Clear the canvas
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Draw ceiling
+        ctx.fillStyle = 'black';
+        ctx.fillRect(0, 0, canvas.width, canvas.height / 2);
+
+        // Draw floor
+        ctx.fillStyle = 'grey';
+        ctx.fillRect(0, canvas.height / 2, canvas.width, canvas.height / 2);
+
+        // Render walls and sprites
+        castRays();
+
+        // Draw the sword if picked up
+        drawSword();
+
+        // Draw the mini-map
+        drawMiniMap();
+
+        // Display player's health
+        ctx.fillStyle = 'white';
+        ctx.font = '20px Arial';
+        ctx.fillText('Health: ' + Math.floor(player.health), 20, 30);
+
+        // Display player's score
+        ctx.fillText('Score: ' + score, 20, 60); // Positioned below health
     }
 
-    // Clear the canvas
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // Draw ceiling
-    ctx.fillStyle = 'black';
-    ctx.fillRect(0, 0, canvas.width, canvas.height / 2);
-
-    // Draw floor
-    ctx.fillStyle = 'grey';
-    ctx.fillRect(0, canvas.height / 2, canvas.width, canvas.height / 2);
-
-    // Render walls and sprites
-    castRays();
-
-    // Draw the sword if picked up
-    drawSword();
-
-    // Draw the mini-map
-    drawMiniMap();
-
-    // Display player's health
-    ctx.fillStyle = 'white';
-    ctx.font = '20px Arial';
-    ctx.fillText('Health: ' + Math.floor(player.health), 20, 30);
-
-    // Display player's score
-    ctx.fillText('Score: ' + score, 20, 60); // Positioned below health
-
-    // Debugging logs (can be removed in production)
-    // console.log('Game Loop Iteration Ended');
-
+    // Continue the game loop
     gameLoopId = requestAnimationFrame(gameLoop);
 }
 
+// ========================
+// 21. Initialize the First Level
+// ========================
+
+loadLevel(currentLevel);
+
+// ========================
+// 22. Start the Game Loop
+// ========================
+
 gameLoop();
+
+// ========================
+// 23. Handle Page Resize
+// ========================
+
+window.addEventListener('resize', function() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    // Optionally, redraw mini-map or other elements if necessary
+});

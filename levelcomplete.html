@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Level Complete - 3D Maze Game</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Level Complete Overlay -->
+    <div id="levelCompleteOverlay" class="overlay">
+        <div class="overlay-content">
+            <h1>Level Complete!</h1>
+            <p>Proceed to Level <span id="nextLevel">1</span></p>
+            <button id="nextLevelButton">Next Level</button>
+        </div>
+    </div>
+
+    <script>
+        // Function to retrieve and display the next level number
+        function displayNextLevel() {
+            const currentLevel = parseInt(localStorage.getItem('currentLevel')) || 1;
+            const nextLevel = currentLevel + 1;
+            document.getElementById('nextLevel').textContent = nextLevel;
+        }
+
+        // Function to handle the next level button click
+        function handleNextLevel() {
+            let currentLevel = parseInt(localStorage.getItem('currentLevel')) || 1;
+            const maxLevel = 10;
+
+            if (currentLevel < maxLevel) {
+                currentLevel += 1;
+                localStorage.setItem('currentLevel', currentLevel);
+                // Redirect to the main game page to load the next level
+                window.location.href = 'index.html';
+            } else {
+                // If all levels are completed, show victory message
+                showVictory();
+            }
+        }
+
+        // Function to show Victory screen if all levels are completed
+        function showVictory() {
+            // Clear previous game data
+            localStorage.removeItem('currentLevel');
+            localStorage.removeItem('score');
+
+            // Store a victory flag
+            localStorage.setItem('victory', 'true');
+
+            // Redirect to the main game page
+            window.location.href = 'index.html';
+        }
+
+        // Initialize the page
+        window.onload = function() {
+            displayNextLevel();
+            document.getElementById('nextLevelButton').addEventListener('click', handleNextLevel);
+        };
+    </script>
+</body>
+</html>

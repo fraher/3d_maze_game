@@ -3,9 +3,61 @@
 body {
     margin: 0;
     overflow: hidden;
+    font-family: Arial, sans-serif;
 }
 
 canvas {
     display: block;
-    background: #000;
+}
+
+/* Overlay Styles */
+.overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.75);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10;
+}
+
+.overlay.hidden {
+    display: none;
+}
+
+.overlay-content {
+    background-color: #fff;
+    padding: 40px;
+    border-radius: 10px;
+    text-align: center;
+    width: 300px;
+}
+
+.overlay-content h1 {
+    margin-bottom: 20px;
+    color: #333;
+}
+
+.overlay-content p {
+    margin-bottom: 30px;
+    font-size: 18px;
+    color: #555;
+}
+
+.overlay-content button {
+    padding: 10px 20px;
+    font-size: 16px;
+    cursor: pointer;
+    border: none;
+    border-radius: 5px;
+    background-color: #333;
+    color: #fff;
+    transition: background-color 0.3s ease;
+}
+
+.overlay-content button:hover {
+    background-color: #555;
 }
