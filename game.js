@@ -21,7 +21,7 @@ canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 const ctx = canvas.getContext('2d');
 
-// Texture loading with mipmapping
+// 3. Texture loading with mipmapping
 const textures = {
     256: new Image(),
     128: new Image(),
@@ -48,15 +48,65 @@ for (let size in textures) {
     };
 }
 
-// Load enemy sprite
+// 4. Load sprite images
 const enemySprite = new Image();
 enemySprite.src = 'textures/enemy.png';
 
-// Load weapon sprite
 const weaponSprite = new Image();
 weaponSprite.src = 'textures/weapon.png';
 
-// 3. Define the player object
+const swordSprite = new Image();
+swordSprite.src = 'textures/sword.png'; // Ensure this image exists
+
+// 5. Sound Manager using Web Audio API
+class SoundManager {
+    constructor() {
+        this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+
+    // Method to play a beep sound
+    playBeep(frequency = 440, duration = 0.1, volume = 0.5) {
+        const oscillator = this.audioCtx.createOscillator();
+        const gainNode = this.audioCtx.createGain();
+
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(frequency, this.audioCtx.currentTime); // Frequency in Hz
+
+        gainNode.gain.setValueAtTime(volume, this.audioCtx.currentTime); // Volume (0 to 1)
+
+        oscillator.connect(gainNode);
+        gainNode.connect(this.audioCtx.destination);
+
+        oscillator.start();
+
+        oscillator.stop(this.audioCtx.currentTime + duration);
+    }
+
+    // Method to play a short square wave (useful for attack sounds)
+    playAttackSound() {
+        this.playBeep(600, 0.1, 0.7);
+    }
+
+    // Method to play a pickup sound
+    playPickupSound() {
+        this.playBeep(300, 0.2, 0.5);
+    }
+
+    // Method to play a damage sound
+    playDamageSound() {
+        this.playBeep(200, 0.1, 0.6);
+    }
+
+    // Method to play a defeat sound (lower frequency)
+    playDefeatSound() {
+        this.playBeep(100, 0.3, 0.8);
+    }
+}
+
+// Instantiate the Sound Manager
+const soundManager = new SoundManager();
+
+// 6. Define the player object
 const player = {
     x: 1.5, // starting x position
     y: 1.5, // starting y position
@@ -67,6 +117,9 @@ const player = {
     radius: 0.2, // Player's collision radius
     health: 100 // Player's health
 };
+
+// Initialize score
+let score = 0;
 
 // Enemies array
 const enemies = [];
@@ -109,9 +162,11 @@ class Enemy {
         } else {
             // Attack the player
             player.health -= 0.1; // Adjust damage as needed
+            soundManager.playDamageSound(); // Play damage sound
             if (player.health <= 0) {
                 player.health = 0;
                 console.log('Player defeated!');
+                soundManager.playDefeatSound(); // Play defeat sound
                 // Stop the game loop
                 cancelAnimationFrame(gameLoopId);
                 // Display game over message
@@ -176,7 +231,7 @@ function placeWeapons(numWeapons) {
 // Place 3 weapons
 placeWeapons(3);
 
-// 4. Implement the raycasting function with fisheye correction
+// 7. Implement the raycasting function with fisheye correction
 function castRays() {
     const numRays = canvas.width;
     const angleStep = player.fov / numRays;
@@ -267,7 +322,7 @@ function castRays() {
     renderSprites(zBuffer);
 }
 
-// Render sprites (enemies and weapons)
+// 8. Render sprites (enemies and weapons)
 function renderSprites(zBuffer) {
     const sprites = [];
 
@@ -359,6 +414,9 @@ function renderSprites(zBuffer) {
                         0, 0, enemySprite.width, enemySprite.height,
                         drawStartX, drawStartY, scaledWidth, scaledHeight
                     );
+
+                    // Draw enemy health indicator
+                    drawEnemyHealth(sprite, drawStartX, drawStartY, scaledWidth);
                 } else if (sprite.type === 'weapon' && weaponSprite.complete) {
                     ctx.drawImage(
                         weaponSprite,
@@ -375,7 +433,70 @@ function renderSprites(zBuffer) {
     });
 }
 
-// 5. Handle player movement and attack input
+// 9. Function to draw enemy health indicators
+function drawEnemyHealth(sprite, drawStartX, drawStartY, spriteWidth) {
+    const healthBarWidth = spriteWidth;
+    const healthBarHeight = 5; // Thickness of the health bar
+
+    // Find the corresponding enemy object
+    const enemy = enemies.find(e => e.x === sprite.x && e.y === sprite.y && e.alive);
+
+    if (enemy) {
+        const healthPercent = Math.max(0, Math.min(1, enemy.health / 100));
+
+        // Position the health bar above the sprite
+        const healthBarX = drawStartX;
+        const healthBarY = drawStartY - 10; // 10 pixels above the sprite
+
+        // Background of the health bar (gray)
+        ctx.fillStyle = 'gray';
+        ctx.fillRect(healthBarX, healthBarY, healthBarWidth, healthBarHeight);
+
+        // Health portion (green)
+        ctx.fillStyle = 'green';
+        ctx.fillRect(healthBarX, healthBarY, healthBarWidth * healthPercent, healthBarHeight);
+    }
+}
+
+// 10. Function to draw the sword in the player's view
+function drawSword() {
+    if (playerWeapon && swordSprite.complete) {
+        const swordWidth = 100; // Adjust size as needed
+        const swordHeight = 200; // Adjust size as needed
+
+        const swordX = (canvas.width / 2) - (swordWidth / 2);
+        const swordY = canvas.height - swordHeight - 50; // Positioning above bottom edge
+
+        // Save the current context state
+        ctx.save();
+
+        // Translate to the pivot point (e.g., bottom center of the sword)
+        ctx.translate(swordX + swordWidth / 2, swordY + swordHeight);
+
+        // Calculate rotation angle
+        let rotation = -Math.PI / 6; // Default angle (30 degrees upwards)
+
+        if (isAttacking) {
+            // Swing the sword by rotating it
+            rotation += (Math.PI / 4) * (attackFrame / maxAttackFrames); // Swing 45 degrees
+        }
+
+        // Rotate the context
+        ctx.rotate(rotation);
+
+        // Draw the sword image centered at the pivot
+        ctx.drawImage(
+            swordSprite,
+            -swordWidth / 2, -swordHeight,
+            swordWidth, swordHeight
+        );
+
+        // Restore the context to its original state
+        ctx.restore();
+    }
+}
+
+// 11. Handle player movement and attack input
 const keys = {};
 
 window.addEventListener('keydown', function(e) {
@@ -391,6 +512,11 @@ window.addEventListener('keydown', function(e) {
 window.addEventListener('keyup', function(e) {
     keys[e.code] = false;
 });
+
+// Sword attack animation variables
+let isAttacking = false; // Flag to indicate if the player is attacking
+let attackFrame = 0;     // Current frame of the attack animation
+const maxAttackFrames = 10; // Total frames for the attack animation
 
 function movePlayer() {
     let moveStep = 0;
@@ -451,7 +577,7 @@ function isWalkable(x, y) {
     );
 }
 
-// Weapon pickup
+// 12. Weapon pickup
 function checkWeaponPickup() {
     weapons.forEach(weapon => {
         if (!weapon.pickedUp) {
@@ -461,18 +587,26 @@ function checkWeaponPickup() {
             if (distance < 0.5) {
                 weapon.pickedUp = true;
                 playerWeapon = weapon;
+                soundManager.playPickupSound(); // Play pickup sound
                 console.log('Weapon picked up!');
             }
         }
     });
 }
 
-// Attack function
+// 13. Attack function
 function attack() {
     if (!playerWeapon) {
         console.log('No weapon to attack with!');
         return;
     }
+
+    if (isAttacking) return; // Prevent multiple attacks at the same time
+
+    isAttacking = true;
+    attackFrame = 0; // Reset attack animation
+
+    soundManager.playAttackSound(); // Play attack sound
 
     // Cast a ray straight ahead to see if an enemy is in front
     const rayAngle = player.dir;
@@ -512,14 +646,63 @@ function attack() {
         console.log('Hit enemy! Health remaining:', hitEnemy.health);
         if (hitEnemy.health <= 0) {
             hitEnemy.alive = false;
-            console.log('Enemy defeated!');
+            score += 1; // Increment score
+            soundManager.playDamageSound(); // Play damage sound
+            console.log('Enemy defeated! Total Score:', score);
+        } else {
+            soundManager.playDamageSound(); // Play damage sound even if not defeated
         }
     } else {
         console.log('Missed!');
     }
 }
 
-// 6. Create the game loop
+// 14. Function to draw the mini-map
+const miniMapScale = 20; // Scale down the map
+const miniMapX = 20; // X position on the canvas
+const miniMapY = 20; // Y position on the canvas
+
+function drawMiniMap() {
+    // Draw map
+    for (let y = 0; y < mapHeight; y++) {
+        for (let x = 0; x < mapWidth; x++) {
+            if (map[y][x] === 1) {
+                ctx.fillStyle = 'blue';
+            } else {
+                ctx.fillStyle = 'lightgrey';
+            }
+            ctx.fillRect(miniMapX + x * miniMapScale, miniMapY + y * miniMapScale, miniMapScale, miniMapScale);
+        }
+    }
+
+    // Draw player
+    ctx.fillStyle = 'green';
+    ctx.beginPath();
+    ctx.arc(miniMapX + player.x * miniMapScale, miniMapY + player.y * miniMapScale, 5, 0, 2 * Math.PI);
+    ctx.fill();
+
+    // Draw enemies
+    enemies.forEach(enemy => {
+        if (enemy.alive) {
+            ctx.fillStyle = 'red';
+            ctx.beginPath();
+            ctx.arc(miniMapX + enemy.x * miniMapScale, miniMapY + enemy.y * miniMapScale, 5, 0, 2 * Math.PI);
+            ctx.fill();
+        }
+    });
+
+    // Draw weapons
+    weapons.forEach(weapon => {
+        if (!weapon.pickedUp) {
+            ctx.fillStyle = 'yellow';
+            ctx.beginPath();
+            ctx.arc(miniMapX + weapon.x * miniMapScale, miniMapY + weapon.y * miniMapScale, 5, 0, 2 * Math.PI);
+            ctx.fill();
+        }
+    });
+}
+
+// 15. Create the game loop
 let gameLoopId;
 
 function gameLoop() {
@@ -528,7 +711,8 @@ function gameLoop() {
         return;
     }
 
-    console.log('Game Loop Iteration Started'); // Debugging
+    // Debugging logs (can be removed in production)
+    // console.log('Game Loop Iteration Started');
 
     movePlayer();
 
@@ -537,6 +721,14 @@ function gameLoop() {
 
     // Check for weapon pickup
     checkWeaponPickup();
+
+    // Handle sword attack animation
+    if (isAttacking) {
+        attackFrame++;
+        if (attackFrame >= maxAttackFrames) {
+            isAttacking = false; // Reset after animation completes
+        }
+    }
 
     // Clear the canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -552,12 +744,22 @@ function gameLoop() {
     // Render walls and sprites
     castRays();
 
+    // Draw the sword if picked up
+    drawSword();
+
+    // Draw the mini-map
+    drawMiniMap();
+
     // Display player's health
     ctx.fillStyle = 'white';
     ctx.font = '20px Arial';
     ctx.fillText('Health: ' + Math.floor(player.health), 20, 30);
 
-    console.log('Game Loop Iteration Ended'); // Debugging
+    // Display player's score
+    ctx.fillText('Score: ' + score, 20, 60); // Positioned below health
+
+    // Debugging logs (can be removed in production)
+    // console.log('Game Loop Iteration Ended');
 
     gameLoopId = requestAnimationFrame(gameLoop);
 }
