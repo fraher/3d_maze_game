@@ -1,16 +1,9 @@
 // game.js
 
-// Define the current map and its dimensions
-let map = [];
-let mapWidth = 0;
-let mapHeight = 0;
+// ====================================
+// 1. Define All Levels and Map Variables
+// ====================================
 
-
-// ====================
-// 1. Define All Levels
-// ====================
-
-// Define 10 levels with unique or similar mazes
 const levels = [
     // Level 1 - Easy
     [
@@ -46,7 +39,8 @@ const levels = [
         [1,0,0,0,0,0,0,1,0,1,0,1,0,1,0,1],
         [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
     ],
-    // Levels 4 to 10 - Duplicate Level 3's maze
+    // Levels 4 to 10 - Reuse Level 3 with increased difficulty
+    // You can define unique mazes for each level for more variety
     [
         // Level 4
         [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
@@ -58,8 +52,10 @@ const levels = [
         [1,0,0,0,0,0,0,1,0,1,0,1,0,1,0,1],
         [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
     ],
+    // Levels 5 to 10 - Similarly defined or unique
     [
         // Level 5
+        // Same as Level 4
         [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
         [1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1],
         [1,0,1,1,1,1,0,1,0,1,1,1,1,1,0,1],
@@ -69,6 +65,8 @@ const levels = [
         [1,0,0,0,0,0,0,1,0,1,0,1,0,1,0,1],
         [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
     ],
+    // Levels 6 to 10 - Placeholder similar to Level 5
+    // Replace with unique mazes as desired
     [
         // Level 6
         [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
@@ -82,6 +80,7 @@ const levels = [
     ],
     [
         // Level 7
+        // Same as Level 6
         [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
         [1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1],
         [1,0,1,1,1,1,0,1,0,1,1,1,1,1,0,1],
@@ -93,6 +92,7 @@ const levels = [
     ],
     [
         // Level 8
+        // Same as Level 7
         [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
         [1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1],
         [1,0,1,1,1,1,0,1,0,1,1,1,1,1,0,1],
@@ -104,6 +104,7 @@ const levels = [
     ],
     [
         // Level 9
+        // Same as Level 8
         [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
         [1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1],
         [1,0,1,1,1,1,0,1,0,1,1,1,1,1,0,1],
@@ -115,6 +116,7 @@ const levels = [
     ],
     [
         // Level 10
+        // Same as Level 9
         [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
         [1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1],
         [1,0,1,1,1,1,0,1,0,1,1,1,1,1,0,1],
@@ -126,6 +128,10 @@ const levels = [
     ]
 ];
 
+// Initialize map variables
+let map = [];
+let mapWidth = 0;
+let mapHeight = 0;
 
 // ========================
 // 2. Initialize the Canvas
@@ -178,6 +184,9 @@ weaponSprite.src = 'textures/weapon.png';
 
 const swordSprite = new Image();
 swordSprite.src = 'textures/sword.png'; // Ensure this image exists
+
+const potionSprite = new Image();
+potionSprite.src = 'textures/potion.png'; // Add a potion sprite image
 
 // ========================
 // 5. Sound Manager
@@ -240,10 +249,11 @@ const player = {
     y: 1.5, // starting y position
     dir: 0, // direction the player is facing (in radians)
     fov: Math.PI / 3, // field of view (60 degrees)
-    speed: 0.01, // movement speed
-    turnSpeed: 0.01, // turning speed
+    speed: 0.05, // movement speed
+    turnSpeed: 0.03, // turning speed
     radius: 0.2, // Player's collision radius
-    health: 100 // Player's health
+    health: 100, // Player's health
+    swordLevel: 1 // Player's sword upgrade level
 };
 
 // ========================
@@ -263,6 +273,9 @@ let enemies = [];
 // Weapons array
 let weapons = [];
 
+// Health Potions array
+let healthPotions = [];
+
 // Player's weapon
 let playerWeapon = null;
 
@@ -278,7 +291,7 @@ class Enemy {
         this.x = x; // Enemy's position on the map
         this.y = y;
         this.health = health; // Enemy's health
-        this.speed = 0.01; // Movement speed
+        this.speed = 0.02; // Movement speed
         this.alive = true; // Is the enemy alive?
     }
 
@@ -335,7 +348,20 @@ class Weapon {
 }
 
 // ========================
-// 10. Level Management Functions
+// 10. Define HealthPotion Class
+// ========================
+
+class HealthPotion {
+    constructor(x, y, healingAmount = 30) {
+        this.x = x;
+        this.y = y;
+        this.healingAmount = healingAmount;
+        this.pickedUp = false;
+    }
+}
+
+// ========================
+// 11. Level Management Functions
 // ========================
 
 // Function to place enemies randomly
@@ -370,6 +396,22 @@ function placeWeaponsFunc(numWeapons) {
     }
 }
 
+// Function to place health potions randomly
+function placeHealthPotions(numPotions) {
+    healthPotions = []; // Reset health potions array
+    for (let i = 0; i < numPotions; i++) {
+        let placed = false;
+        while (!placed) {
+            const x = Math.floor(Math.random() * mapWidth);
+            const y = Math.floor(Math.random() * mapHeight);
+            if (map[y][x] === 0 && (Math.abs(x - player.x) > 2 || Math.abs(y - player.y) > 2)) {
+                healthPotions.push(new HealthPotion(x + 0.5, y + 0.5));
+                placed = true;
+            }
+        }
+    }
+}
+
 // Function to load a specific level
 function loadLevel(levelNumber) {
     if (levelNumber > levels.length) {
@@ -380,7 +422,7 @@ function loadLevel(levelNumber) {
     // Set the current map
     map.splice(0, map.length, ...levels[levelNumber - 1]);
 
-    // Update map dimensions
+    // Set map dimensions
     mapHeight = map.length;
     mapWidth = map[0].length;
 
@@ -394,21 +436,31 @@ function loadLevel(levelNumber) {
     const numWeapons = 3 + Math.floor(levelNumber / 2); // Example: starting at 3, increasing by 1 every 2 levels
     placeWeaponsFunc(numWeapons);
 
+    // Increase health potions: more potions in higher levels
+    const numPotions = 2 + Math.floor(levelNumber / 3); // Example: starting at 2, increasing by 1 every 3 levels
+    placeHealthPotions(numPotions);
+
     // Reset player position and health
     player.x = 1.5;
     player.y = 1.5;
     player.dir = 0;
     player.health = 100;
-    score = 0;
 
+    if (levelNumber === 1) {
+        // Reset sword level
+        player.swordLevel = 1;
+
+        // Reset score
+        score = 0;
+    }
+    
     // Store current level and score in Local Storage
     localStorage.setItem('currentLevel', levelNumber);
     localStorage.setItem('score', score);
 }
 
-
 // ========================
-// 11. Raycasting Function
+// 12. Raycasting Function
 // ========================
 
 function castRays() {
@@ -497,12 +549,12 @@ function castRays() {
         zBuffer[i] = correctedDistance; // Save distance for sprite rendering
     }
 
-    // Render sprites (enemies and weapons)
+    // Render sprites (enemies, weapons, and health potions)
     renderSprites(zBuffer);
 }
 
 // ========================
-// 12. Render Sprites Function
+// 13. Render Sprites Function
 // ========================
 
 function renderSprites(zBuffer) {
@@ -562,6 +614,33 @@ function renderSprites(zBuffer) {
         }
     });
 
+    // Add health potions to sprites array
+    healthPotions.forEach(potion => {
+        if (!potion.pickedUp) {
+            const dx = potion.x - player.x;
+            const dy = potion.y - player.y;
+
+            const distance = Math.sqrt(dx * dx + dy * dy);
+
+            let angle = Math.atan2(dy, dx) - player.dir;
+
+            // Normalize angle between -PI and PI
+            while (angle < -Math.PI) angle += 2 * Math.PI;
+            while (angle > Math.PI) angle -= 2 * Math.PI;
+
+            // Sprite is within FOV
+            if (angle > -player.fov / 2 && angle < player.fov / 2) {
+                sprites.push({
+                    type: 'potion',
+                    x: potion.x,
+                    y: potion.y,
+                    distance: distance,
+                    angle: angle
+                });
+            }
+        }
+    });
+
     // Sort sprites by distance (furthest first)
     sprites.sort((a, b) => b.distance - a.distance);
 
@@ -605,9 +684,21 @@ function renderSprites(zBuffer) {
                         0, 0, weaponSprite.width, weaponSprite.height,
                         drawStartX, drawStartY, scaledWidth, scaledHeight
                     );
+                } else if (sprite.type === 'potion' && potionSprite.complete) {
+                    ctx.drawImage(
+                        potionSprite,
+                        0, 0, potionSprite.width, potionSprite.height,
+                        drawStartX, drawStartY, scaledWidth, scaledHeight
+                    );
                 } else {
                     // Fallback to colored rectangle
-                    ctx.fillStyle = sprite.type === 'enemy' ? 'red' : 'yellow';
+                    if (sprite.type === 'enemy') {
+                        ctx.fillStyle = 'red';
+                    } else if (sprite.type === 'weapon') {
+                        ctx.fillStyle = 'yellow';
+                    } else if (sprite.type === 'potion') {
+                        ctx.fillStyle = 'purple';
+                    }
                     ctx.fillRect(drawStartX, drawStartY, scaledWidth, scaledHeight);
                 }
             }
@@ -616,7 +707,7 @@ function renderSprites(zBuffer) {
 }
 
 // ========================
-// 13. Draw Enemy Health Indicators
+// 14. Function to Draw Enemy Health Indicators
 // ========================
 
 function drawEnemyHealth(sprite, drawStartX, drawStartY, spriteWidth) {
@@ -644,7 +735,7 @@ function drawEnemyHealth(sprite, drawStartX, drawStartY, spriteWidth) {
 }
 
 // ========================
-// 14. Draw Sword Function
+// 15. Function to Draw the Sword in the Player's View
 // ========================
 
 function drawSword() {
@@ -685,7 +776,7 @@ function drawSword() {
 }
 
 // ========================
-// 15. Handle Player Input
+// 16. Handle Player Input and Movement
 // ========================
 
 const keys = {};
@@ -769,7 +860,7 @@ function isWalkable(x, y) {
 }
 
 // ========================
-// 16. Weapon Pickup Function
+// 17. Weapon Pickup Function
 // ========================
 
 function checkWeaponPickup() {
@@ -782,14 +873,36 @@ function checkWeaponPickup() {
                 weapon.pickedUp = true;
                 playerWeapon = weapon;
                 soundManager.playPickupSound(); // Play pickup sound
-                console.log('Weapon picked up!');
+                player.swordLevel = player.swordLevel + 1;
+                console.log('Weapon picked up! Sword Level:', player.swordLevel);
             }
         }
     });
 }
 
 // ========================
-// 17. Attack Function
+// 18. Health Potion Pickup Function
+// ========================
+
+function checkHealthPotionPickup() {
+    healthPotions.forEach(potion => {
+        if (!potion.pickedUp) {
+            const dx = player.x - potion.x;
+            const dy = player.y - potion.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            if (distance < 0.5) {
+                potion.pickedUp = true;
+                player.health += potion.healingAmount;
+                player.health = Math.min(player.health, 100); // Cap health at 100
+                soundManager.playPickupSound(); // Play pickup sound
+                console.log('Health Potion picked up! Health:', player.health);
+            }
+        }
+    });
+}
+
+// ========================
+// 19. Attack Function
 // ========================
 
 function attack() {
@@ -838,9 +951,10 @@ function attack() {
     }
 
     if (hitEnemy) {
-        // Damage the enemy
-        hitEnemy.health -= 50;
-        console.log('Hit enemy! Health remaining:', hitEnemy.health);
+        // Calculate damage based on sword level
+        const damage = 50 * player.swordLevel;
+        hitEnemy.health -= damage;
+        console.log(`Hit enemy! Damage: ${damage}. Health remaining: ${hitEnemy.health}`);
         if (hitEnemy.health <= 0) {
             hitEnemy.alive = false;
             score += 1; // Increment score
@@ -855,7 +969,7 @@ function attack() {
 }
 
 // ========================
-// 18. Mini-Map Function
+// 20. Mini-Map Function
 // ========================
 
 const miniMapScale = 20; // Scale down the map
@@ -900,22 +1014,28 @@ function drawMiniMap() {
             ctx.fill();
         }
     });
+
+    // Draw health potions
+    healthPotions.forEach(potion => {
+        if (!potion.pickedUp) {
+            ctx.fillStyle = 'purple';
+            ctx.beginPath();
+            ctx.arc(miniMapX + potion.x * miniMapScale, miniMapY + potion.y * miniMapScale, 5, 0, 2 * Math.PI);
+            ctx.fill();
+        }
+    });
 }
 
 // ========================
-// 19. Game Over and Level Complete Functions
+// 21. Game Over and Level Complete Functions
 // ========================
 
 // Reference to HTML elements
-const gameOverOverlay = document.getElementById('gameOverOverlay');
-const finalScoreSpan = document.getElementById('finalScore');
-const restartButton = document.getElementById('restartButton');
+// Assuming that gameover.html and levelcomplete.html are handled via redirection,
+// these elements might not be present in index.html. If they are handled via overlays,
+// ensure to adjust accordingly.
+// For this example, we redirect to separate HTML files.
 
-const levelCompleteOverlay = document.getElementById('levelCompleteOverlay');
-const nextLevelSpan = document.getElementById('nextLevel');
-const nextLevelButton = document.getElementById('nextLevelButton');
-
-// Function to show Game Over screen
 function showGameOver() {
     gameState = 'gameover';
     // Store the final score in Local Storage
@@ -924,7 +1044,6 @@ function showGameOver() {
     window.location.href = 'gameover.html';
 }
 
-// Function to show Level Complete screen
 function showLevelComplete() {
     gameState = 'levelcomplete';
     // Store the current score in Local Storage
@@ -933,7 +1052,6 @@ function showLevelComplete() {
     window.location.href = 'levelcomplete.html';
 }
 
-// Function to show Victory screen
 function showVictory() {
     gameState = 'victory';
     // Store the final score
@@ -945,7 +1063,7 @@ function showVictory() {
 }
 
 // ========================
-// 20. Game Loop Function
+// 22. Game Loop Function
 // ========================
 
 let gameLoopId;
@@ -962,8 +1080,9 @@ function gameLoop() {
         // Update enemies
         enemies.forEach(enemy => enemy.update());
 
-        // Check for weapon pickup
+        // Check for weapon and health potion pickups
         checkWeaponPickup();
+        checkHealthPotionPickup();
 
         // Handle sword attack animation
         if (isAttacking) {
@@ -1011,6 +1130,9 @@ function gameLoop() {
 
         // Display player's score
         ctx.fillText('Score: ' + score, 20, 60); // Positioned below health
+
+        // Display sword level
+        ctx.fillText('Sword Level: ' + player.swordLevel, 20, 90); // Positioned below score
     }
 
     // Continue the game loop
@@ -1018,19 +1140,19 @@ function gameLoop() {
 }
 
 // ========================
-// 21. Initialize the First Level
+// 23. Initialize the First Level
 // ========================
 
 loadLevel(currentLevel);
 
 // ========================
-// 22. Start the Game Loop
+// 24. Start the Game Loop
 // ========================
 
 gameLoop();
 
 // ========================
-// 23. Handle Page Resize
+// 25. Handle Page Resize
 // ========================
 
 window.addEventListener('resize', function() {
