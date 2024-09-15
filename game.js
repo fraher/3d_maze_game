@@ -1171,8 +1171,7 @@ function gameLoop() {
 // 23. Initialize the First Level
 // ========================
 
-//loadLevel(currentLevel);
-loadLevel(10);
+loadLevel(currentLevel);
 
 // ========================
 // 24. Start the Game Loop
