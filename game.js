@@ -22,10 +22,11 @@ const levels = [
         [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
         [1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1],
         [1,0,1,1,1,1,0,1,0,1,1,1,1,1,0,1],
-        [1,0,1,0,0,1,0,1,0,1,0,0,0,1,0,1],
-        [1,0,1,0,0,1,0,1,0,1,0,1,0,1,0,1],
-        [1,0,1,1,1,1,0,1,0,1,0,1,0,1,0,1],
-        [1,0,0,0,0,0,0,1,0,1,0,1,0,1,0,1],
+        [1,0,1,0,0,1,0,0,0,0,0,0,0,1,0,1],
+        [1,0,1,0,0,1,1,1,1,1,0,1,0,1,0,1],
+        [1,0,1,1,0,0,0,1,0,0,0,1,0,1,0,1],
+        [1,0,0,1,1,1,0,0,0,1,1,0,0,1,0,1],
+        [1,0,0,0,0,0,0,1,1,1,0,0,0,0,0,1],
         [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
     ],
     // Level 3
@@ -253,7 +254,8 @@ const player = {
     turnSpeed: 0.03, // turning speed
     radius: 0.2, // Player's collision radius
     health: 100, // Player's health
-    swordLevel: 1 // Player's sword upgrade level
+    sword: localStorage.getItem('sword').toLowerCase() === 'true' ? true : localStorage.getItem('sword').toLowerCase() === 'false' ? false : false,
+    swordLevel: parseInt(localStorage.getItem('swordLevel')) || 1
 };
 
 // ========================
@@ -277,7 +279,7 @@ let weapons = [];
 let healthPotions = [];
 
 // Player's weapon
-let playerWeapon = null;
+let playerWeapon = localStorage.getItem('weapon') || null;
 
 // Game State
 let gameState = 'running'; // 'running', 'gameover', 'levelcomplete', 'victory'
@@ -445,6 +447,12 @@ function loadLevel(levelNumber) {
     player.y = 1.5;
     player.dir = 0;
     player.health = 100;
+
+    // Preserve the sword and its power level if the player has acquired one
+    if (player.sword) {
+        drawSword();
+        console.log('Sword carried over to the next level with power:', player.swordLevel);
+    }
 
     if (levelNumber === 1) {
         // Reset sword level
@@ -872,9 +880,15 @@ function checkWeaponPickup() {
             if (distance < 0.5) {
                 weapon.pickedUp = true;
                 playerWeapon = weapon;
+                if (player.sword) {
+                    player.swordLevel += 1; // Increase sword power if the player already has one
+                    console.log('Sword power increased to:', player.swordLevel);
+                } else {
+                    player.sword = true; // Assign the sword to the player
+                    player.swordLevel = 1; // Start with power level 1
+                    console.log('Sword picked up with power level:', player.swordLevel);
+                }
                 soundManager.playPickupSound(); // Play pickup sound
-                player.swordLevel = player.swordLevel + 1;
-                console.log('Weapon picked up! Sword Level:', player.swordLevel);
             }
         }
     });
@@ -1048,6 +1062,10 @@ function showLevelComplete() {
     gameState = 'levelcomplete';
     // Store the current score in Local Storage
     localStorage.setItem('score', score);
+    // Store weapon level
+    localStorage.setItem('sword',player.sword.toString());
+    localStorage.setItem('swordLevel', player.swordLevel);
+    localStorage.setItem('weapon', player.weapon);
     // Redirect to levelcomplete.html
     window.location.href = 'levelcomplete.html';
 }
@@ -1126,13 +1144,14 @@ function gameLoop() {
         // Display player's health
         ctx.fillStyle = 'white';
         ctx.font = '20px Arial';
-        ctx.fillText('Health: ' + Math.floor(player.health), 20, 30);
+        
+        ctx.fillText('Health: ' + Math.floor(player.health), 20, 230);
 
         // Display player's score
-        ctx.fillText('Score: ' + score, 20, 60); // Positioned below health
+        ctx.fillText('Score: ' + score, 20, 260); // Positioned below health
 
         // Display sword level
-        ctx.fillText('Sword Level: ' + player.swordLevel, 20, 90); // Positioned below score
+        ctx.fillText('Sword Level: ' + player.swordLevel, 20, 290); // Positioned below score
     }
 
     // Continue the game loop
