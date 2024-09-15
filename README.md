@@ -2,6 +2,8 @@
 
 ![Game Banner](./docs/Overtaken%20-%20A%203d%20Maze%20Game.png)
 
+**Play the game** - [https://fraher.github.io/3d_maze_game/](https://fraher.github.io/3d_maze_game/)
+
 ## Table of Contents
 
 - [Overview](#overview)
