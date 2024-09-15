@@ -254,7 +254,11 @@ const player = {
     turnSpeed: 0.03, // turning speed
     radius: 0.2, // Player's collision radius
     health: 100, // Player's health
-    sword: localStorage.getItem('sword').toLowerCase() === 'true' ? true : localStorage.getItem('sword').toLowerCase() === 'false' ? false : false,
+    sword: localStorage.getItem('sword') !== null && localStorage.getItem('sword').toLowerCase() === 'true' 
+    ? true 
+    : localStorage.getItem('sword') !== null && localStorage.getItem('sword').toLowerCase() === 'false' 
+    ? false 
+    : false,
     swordLevel: parseInt(localStorage.getItem('swordLevel')) || 1
 };
 
