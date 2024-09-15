@@ -138,7 +138,7 @@ Here's an overview of the project's file structure:
 
 ## Credits
 
-This README, game,and graphics were 99% generated using GPT-4, GPT-4-turbo, and GPT-o1-mini.
+This README, game,and graphics were 95% generated using GPT-4, GPT-4-turbo, and GPT-o1-mini.
 
 ## License
 
