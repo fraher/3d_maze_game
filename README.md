@@ -34,9 +34,7 @@ Welcome to the **3D Maze Game**, an immersive browser-based game that challenges
 
 ## Demo
 
-[![Watch the Game](./docs/thumbnail.png)](./docs/game_play.mp4)
-
-*Click the image above to watch a demo of the game.*
+![Watch the Game](./docs/game_play.gif)
 
 ## Technologies Used
 
