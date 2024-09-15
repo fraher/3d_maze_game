@@ -256,8 +256,6 @@ const player = {
     health: 100, // Player's health
     sword: localStorage.getItem('sword') !== null && localStorage.getItem('sword').toLowerCase() === 'true' 
     ? true 
-    : localStorage.getItem('sword') !== null && localStorage.getItem('sword').toLowerCase() === 'false' 
-    ? false 
     : false,
     swordLevel: parseInt(localStorage.getItem('swordLevel')) || 1
 };
