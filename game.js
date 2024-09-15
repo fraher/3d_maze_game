@@ -245,6 +245,8 @@ const soundManager = new SoundManager();
 // 6. Define the Player Object
 // ========================
 
+let swordItem = localStorage.getItem('sword');
+
 const player = {
     x: 1.5, // starting x position
     y: 1.5, // starting y position
@@ -254,7 +256,7 @@ const player = {
     turnSpeed: 0.03, // turning speed
     radius: 0.2, // Player's collision radius
     health: 100, // Player's health
-    sword: localStorage.getItem('sword') !== null && localStorage.getItem('sword').toLowerCase() === 'true' 
+    sword: swordItem && swordItem.toLowerCase() === 'true' 
     ? true 
     : false,
     swordLevel: parseInt(localStorage.getItem('swordLevel')) || 1
