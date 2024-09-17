@@ -100,7 +100,10 @@ Master the controls to maneuver through the maze and engage enemies effectively.
   - **D / Arrow Right**: Turn Right
 
 - **Combat**
-  - **Spacebar**: Attack with Sword
+  - **Spacebar**: Attack with Sword (must pick up first)
+ 
+- **Pick Up Item**
+  - Walk through item to pick it up.
 
 - **Additional**
   - **Click to Focus**: Click anywhere on the game canvas to focus and enable keyboard controls.
