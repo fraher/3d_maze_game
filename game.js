@@ -482,46 +482,84 @@ function loadLevel(levelNumber) {
 
 function castRays() {
     const numRays = canvas.width;
+    // Use the same FOV and direction logic as before for consistency
     const angleStep = player.fov / numRays;
 
     const zBuffer = []; // To keep track of wall distances for sprites
 
     for (let i = 0; i < numRays; i++) {
         const rayAngle = player.dir - (player.fov / 2) + (i * angleStep);
+        
+        // Ray direction vectors
+        const rayDirX = Math.cos(rayAngle);
+        const rayDirY = Math.sin(rayAngle);
+
+        // Map position
+        let mapX = Math.floor(player.x);
+        let mapY = Math.floor(player.y);
+
+        // Length of ray from current position to next x or y-side
+        let sideDistX;
+        let sideDistY;
+
+        // Length of ray from one x or y-side to next x or y-side
+        // Prevent division by zero
+        const deltaDistX = (rayDirX === 0) ? 1e30 : Math.abs(1 / rayDirX);
+        const deltaDistY = (rayDirY === 0) ? 1e30 : Math.abs(1 / rayDirY);
+
+        let perpWallDist;
+
+        // Step direction
+        let stepX;
+        let stepY;
+
+        let hit = 0; // Was there a wall hit?
+        let side; // Was a NS or a EW wall hit?
+
+        // Calculate step and initial sideDist
+        if (rayDirX < 0) {
+            stepX = -1;
+            sideDistX = (player.x - mapX) * deltaDistX;
+        } else {
+            stepX = 1;
+            sideDistX = (mapX + 1.0 - player.x) * deltaDistX;
+        }
+        if (rayDirY < 0) {
+            stepY = -1;
+            sideDistY = (player.y - mapY) * deltaDistY;
+        } else {
+            stepY = 1;
+            sideDistY = (mapY + 1.0 - player.y) * deltaDistY;
+        }
+
+        // DDA Algorithm
         let distanceToWall = 0;
-        let hitWall = false;
-        let textureX = 0;
-
-        const eyeX = Math.cos(rayAngle);
-        const eyeY = Math.sin(rayAngle);
-
-        while (!hitWall && distanceToWall < 16) {
-            distanceToWall += 0.05;
-
-            const testX = player.x + eyeX * distanceToWall;
-            const testY = player.y + eyeY * distanceToWall;
-
-            const mapX = Math.floor(testX);
-            const mapY = Math.floor(testY);
-
-            if (mapX < 0 || mapX >= mapWidth || mapY < 0 || mapY >= mapHeight) {
-                hitWall = true;
-                distanceToWall = 16;
+        while (hit === 0) {
+            // Jump to next map square, OR in x-direction, OR in y-direction
+            if (sideDistX < sideDistY) {
+                sideDistX += deltaDistX;
+                mapX += stepX;
+                side = 0;
             } else {
-                if (map[mapY][mapX] === 1) {
-                    hitWall = true;
-
-                    const blockX = testX % 1;
-                    const blockY = testY % 1;
-
-                    if (Math.abs(blockX - 1) < 0.0001 || blockX < 0.0001) {
-                        textureX = blockY;
-                    } else {
-                        textureX = blockX;
-                    }
-                    textureX = textureX % 1;
-                }
+                sideDistY += deltaDistY;
+                mapY += stepY;
+                side = 1;
             }
+
+            // Check if ray has hit a wall
+            if (mapX < 0 || mapX >= mapWidth || mapY < 0 || mapY >= mapHeight) {
+                hit = 1;
+                distanceToWall = 16; // Max distance
+            } else if (map[mapY][mapX] === 1) {
+                hit = 1;
+            }
+        }
+
+        // Calculate distance projected on camera direction
+        if (side === 0) {
+            distanceToWall = (sideDistX - deltaDistX);
+        } else {
+            distanceToWall = (sideDistY - deltaDistY);
         }
 
         // Correct fisheye distortion
@@ -533,6 +571,22 @@ function castRays() {
 
         const drawStart = Math.floor(-lineHeight / 2 + canvas.height / 2);
         const drawEnd = Math.floor(lineHeight / 2 + canvas.height / 2);
+
+        // Calculate texture X coordinate
+        let textureX;
+        if (side === 0) {
+            let wallX = player.y + distanceToWall * rayDirY;
+            wallX -= Math.floor(wallX);
+            textureX = wallX;
+        } else {
+            let wallX = player.x + distanceToWall * rayDirX;
+            wallX -= Math.floor(wallX);
+            textureX = wallX;
+        }
+        
+        // Flip texture if needed
+        if (side === 0 && rayDirX > 0) textureX = 1.0 - textureX;
+        if (side === 1 && rayDirY < 0) textureX = 1.0 - textureX;
 
         // Choose texture level based on corrected distance (mipmapping)
         let textureSize;
