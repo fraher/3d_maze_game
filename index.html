@@ -2,11 +2,21 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>3D Maze Game</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <canvas id="gameCanvas"></canvas>
+
+    <!-- On-screen touch controls (revealed only on touch devices) -->
+    <div id="touchControls" class="touch-controls hidden">
+        <div id="lookArea" class="look-area"></div>
+        <div id="joystick" class="joystick">
+            <div id="joystickThumb" class="joystick-thumb"></div>
+        </div>
+        <button id="attackButton" class="attack-button" aria-label="Attack">&#9876;</button>
+    </div>
 
     <script src="game.js"></script>
 </body>

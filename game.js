@@ -906,6 +906,10 @@ function drawSword() {
 
 const keys = {};
 
+// Continuous input from on-screen touch controls (mobile).
+// move/turn are joystick axes in [-1, 1]; lookDelta accumulates drag-to-turn (radians).
+const touchInput = { move: 0, turn: 0, lookDelta: 0 };
+
 window.addEventListener('keydown', function(e) {
     keys[e.code] = true;
 
@@ -934,6 +938,11 @@ function movePlayer() {
         moveStep = -player.speed;
     }
 
+    // Joystick forward/back (additive, then clamped to walking speed)
+    moveStep += touchInput.move * player.speed;
+    if (moveStep > player.speed) moveStep = player.speed;
+    if (moveStep < -player.speed) moveStep = -player.speed;
+
     // Calculate new position
     const newX = player.x + Math.cos(player.dir) * moveStep;
     const newY = player.y + Math.sin(player.dir) * moveStep;
@@ -952,6 +961,11 @@ function movePlayer() {
     if (keys['ArrowRight'] || keys['KeyD']) {
         player.dir += player.turnSpeed;
     }
+
+    // Touch turning: joystick X axis plus drag-to-look on the right of the screen
+    player.dir += touchInput.turn * player.turnSpeed;
+    player.dir += touchInput.lookDelta;
+    touchInput.lookDelta = 0; // Consume accumulated drag each frame
 
     // Keep the angle between 0 and 2PI
     if (player.dir < 0) {
@@ -1291,8 +1305,103 @@ gameLoop();
 // 25. Handle Page Resize
 // ========================
 
-window.addEventListener('resize', function() {
+function resizeCanvas() {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
-    // Optionally, redraw mini-map or other elements if necessary
+}
+
+window.addEventListener('resize', resizeCanvas);
+// iOS reports new dimensions slightly after orientationchange fires
+window.addEventListener('orientationchange', function() {
+    resizeCanvas();
+    setTimeout(resizeCanvas, 300);
 });
+
+// ========================
+// 26. On-Screen Touch Controls (Mobile)
+// ========================
+
+function setupTouchControls() {
+    const controls = document.getElementById('touchControls');
+    const joystick = document.getElementById('joystick');
+    const thumb = document.getElementById('joystickThumb');
+    const lookArea = document.getElementById('lookArea');
+    const attackBtn = document.getElementById('attackButton');
+    if (!controls || !joystick || !thumb || !lookArea || !attackBtn) return;
+
+    // Only surface the controls on touch-capable devices; desktop keeps keyboard only
+    const isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+    if (!isTouch) return;
+    controls.classList.remove('hidden');
+
+    // --- Virtual joystick: vertical = move, horizontal = turn ---
+    const maxRadius = 55; // px of thumb travel mapped to full axis deflection
+    let joyId = null;
+
+    function joyUpdate(e) {
+        const rect = joystick.getBoundingClientRect();
+        const cx = rect.left + rect.width / 2;
+        const cy = rect.top + rect.height / 2;
+        let dx = e.clientX - cx;
+        let dy = e.clientY - cy;
+        const dist = Math.hypot(dx, dy);
+        if (dist > maxRadius) {
+            dx = (dx / dist) * maxRadius;
+            dy = (dy / dist) * maxRadius;
+        }
+        thumb.style.transform = 'translate(' + dx + 'px, ' + dy + 'px)';
+        touchInput.turn = dx / maxRadius;   // right = turn right
+        touchInput.move = -dy / maxRadius;  // up = move forward
+    }
+    joystick.addEventListener('pointerdown', function(e) {
+        joyId = e.pointerId;
+        joystick.setPointerCapture(e.pointerId);
+        joyUpdate(e);
+        e.preventDefault();
+    });
+    joystick.addEventListener('pointermove', function(e) {
+        if (e.pointerId !== joyId) return;
+        joyUpdate(e);
+        e.preventDefault();
+    });
+    function joyEnd(e) {
+        if (e.pointerId !== joyId) return;
+        joyId = null;
+        thumb.style.transform = 'translate(0px, 0px)';
+        touchInput.move = 0;
+        touchInput.turn = 0;
+    }
+    joystick.addEventListener('pointerup', joyEnd);
+    joystick.addEventListener('pointercancel', joyEnd);
+
+    // --- Drag anywhere on the right to turn/look ---
+    const lookSensitivity = 0.005; // radians per pixel dragged
+    let lookId = null;
+    let lastX = 0;
+    lookArea.addEventListener('pointerdown', function(e) {
+        lookId = e.pointerId;
+        lastX = e.clientX;
+        lookArea.setPointerCapture(e.pointerId);
+        e.preventDefault();
+    });
+    lookArea.addEventListener('pointermove', function(e) {
+        if (e.pointerId !== lookId) return;
+        touchInput.lookDelta += (e.clientX - lastX) * lookSensitivity;
+        lastX = e.clientX;
+        e.preventDefault();
+    });
+    function lookEnd(e) {
+        if (e.pointerId !== lookId) return;
+        lookId = null;
+    }
+    lookArea.addEventListener('pointerup', lookEnd);
+    lookArea.addEventListener('pointercancel', lookEnd);
+
+    // --- Attack button ---
+    attackBtn.addEventListener('pointerdown', function(e) {
+        e.preventDefault();
+        attack();
+    });
+}
+
+setupTouchControls();
