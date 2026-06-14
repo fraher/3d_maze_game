@@ -1,13 +1,106 @@
 /* styles.css */
 
+html, body {
+    width: 100%;
+    height: 100%;
+}
+
 body {
     margin: 0;
     overflow: hidden;
     font-family: Arial, sans-serif;
+    background: #000;
+    overscroll-behavior: none;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
 }
 
 canvas {
     display: block;
+    width: 100%;
+    height: 100%;
+    touch-action: none;
+}
+
+/* ===== Mobile touch controls ===== */
+.touch-controls {
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+    pointer-events: none; /* container is transparent to input; children opt in */
+    touch-action: none;
+}
+
+.touch-controls.hidden {
+    display: none;
+}
+
+/* Right-side area: drag to turn / look */
+.look-area {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 55%;
+    height: 100%;
+    pointer-events: auto;
+    touch-action: none;
+}
+
+/* Left thumb-stick: vertical = move, horizontal = turn */
+.joystick {
+    position: absolute;
+    left: calc(env(safe-area-inset-left, 0px) + 24px);
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 28px);
+    width: 140px;
+    height: 140px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.12);
+    border: 2px solid rgba(255, 255, 255, 0.35);
+    pointer-events: auto;
+    touch-action: none;
+}
+
+.joystick-thumb {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 62px;
+    height: 62px;
+    margin-left: -31px;
+    margin-top: -31px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.4);
+    border: 2px solid rgba(255, 255, 255, 0.6);
+}
+
+/* Attack button, bottom-right */
+.attack-button {
+    position: absolute;
+    right: calc(env(safe-area-inset-right, 0px) + 28px);
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 40px);
+    width: 96px;
+    height: 96px;
+    border-radius: 50%;
+    background: rgba(220, 60, 60, 0.45);
+    border: 3px solid rgba(255, 255, 255, 0.6);
+    color: #fff;
+    font-size: 40px;
+    line-height: 1;
+    padding: 0;
+    pointer-events: auto;
+    touch-action: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.attack-button:active {
+    background: rgba(220, 60, 60, 0.8);
+}
+
+@media (max-width: 500px) {
+    .joystick { width: 120px; height: 120px; }
+    .joystick-thumb { width: 54px; height: 54px; margin-left: -27px; margin-top: -27px; }
+    .attack-button { width: 84px; height: 84px; font-size: 34px; }
 }
 
 /* Overlay Styles */
@@ -34,6 +127,8 @@ canvas {
     border-radius: 10px;
     text-align: center;
     width: 300px;
+    max-width: calc(100vw - 40px);
+    box-sizing: border-box;
 }
 
 .overlay-content h1 {

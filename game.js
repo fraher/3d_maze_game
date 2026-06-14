@@ -628,6 +628,33 @@ function castRays() {
 // 13. Render Sprites Function
 // ========================
 
+// Cache of distance-shaded sprite variants, keyed by image source + brightness bucket.
+// Pre-tinting once per (image, brightness) keeps per-frame rendering cheap.
+const shadedSpriteCache = {};
+
+function getShadedSprite(img, brightness) {
+    // Quantise brightness so we only cache a handful of variants per image
+    const bucket = Math.round(brightness * 10) / 10;
+    if (bucket >= 1) return img; // Full brightness: just use the original image
+
+    const key = (img.src || '') + '@' + bucket;
+    if (shadedSpriteCache[key]) return shadedSpriteCache[key];
+
+    const off = document.createElement('canvas');
+    off.width = img.naturalWidth || img.width;
+    off.height = img.naturalHeight || img.height;
+    const octx = off.getContext('2d');
+
+    // Draw the sprite, then darken only its opaque pixels (source-atop respects alpha)
+    octx.drawImage(img, 0, 0);
+    octx.globalCompositeOperation = 'source-atop';
+    octx.fillStyle = 'rgba(0, 0, 0, ' + (1 - bucket) + ')';
+    octx.fillRect(0, 0, off.width, off.height);
+
+    shadedSpriteCache[key] = off;
+    return off;
+}
+
 function renderSprites(zBuffer) {
     const sprites = [];
 
@@ -715,63 +742,90 @@ function renderSprites(zBuffer) {
     // Sort sprites by distance (furthest first)
     sprites.sort((a, b) => b.distance - a.distance);
 
+    // Animation clock (seconds) for idle bob/sway
+    const time = performance.now() / 1000;
+
     sprites.forEach(sprite => {
-        // Projection calculations
+        // Perpendicular depth (matches the wall z-buffer) used for sizing and occlusion
+        let depth = sprite.distance * Math.cos(sprite.angle);
+        if (depth < 0.2) depth = 0.2;
+
+        // Horizontal screen position of the sprite's centre
         const spriteScreenX = (canvas.width / 2) * (1 + (Math.sin(sprite.angle) / Math.tan(player.fov / 2)));
-        const spriteSize = (canvas.height / sprite.distance);
 
-        const drawStartY = Math.floor((canvas.height / 2) - spriteSize / 2);
-        const drawEndY = drawStartY + spriteSize;
+        // Full-cell projected size: a 1-unit-tall object spans this many pixels at this depth
+        const cellSize = canvas.height / depth;
 
-        const drawStartX = Math.floor(spriteScreenX - spriteSize / 2);
-        const drawEndX = Math.floor(spriteScreenX + spriteSize / 2);
-
-        // Ensure sprite is within screen bounds
-        if (drawEndX < 0 || drawStartX >= canvas.width || drawEndY < 0 || drawStartY >= canvas.height) {
-            return; // Skip rendering this sprite
+        // Per-type look: how tall it stands, how high it hovers, how it animates
+        let img, config;
+        if (sprite.type === 'enemy') {
+            img = enemySprite;
+            config = { heightScale: 1.0, lift: 0.0, bobAmp: 0.03, bobSpeed: 7, swayAmp: 0.02, hover: false };
+        } else if (sprite.type === 'weapon') {
+            img = weaponSprite;
+            config = { heightScale: 0.5, lift: 0.18, bobAmp: 0.05, bobSpeed: 3, swayAmp: 0.0, hover: true };
+        } else { // potion
+            img = potionSprite;
+            config = { heightScale: 0.45, lift: 0.18, bobAmp: 0.05, bobSpeed: 3, swayAmp: 0.0, hover: true };
         }
 
-        // Check z-buffer to see if sprite is behind a wall
-        const spriteMiddleX = Math.floor(spriteScreenX);
-        if (spriteMiddleX >= 0 && spriteMiddleX < canvas.width) {
-            if (sprite.distance < zBuffer[spriteMiddleX]) {
-                // Calculate sprite size and position
-                const scaledWidth = spriteSize;
-                const scaledHeight = spriteSize;
+        // Stable per-sprite phase so nearby objects don't animate in lock-step
+        const phase = sprite.x * 12.9898 + sprite.y * 78.233;
+        const wave = Math.sin(time * config.bobSpeed + phase);
+        // Pickups hover up/down; enemies get an upward walking bounce
+        const bob = (config.hover ? wave : Math.abs(wave)) * config.bobAmp * cellSize;
+        const sway = config.swayAmp ? wave * cellSize * config.swayAmp : 0;
 
-                // Draw the sprite image
-                if (sprite.type === 'enemy' && enemySprite.complete) {
-                    ctx.drawImage(
-                        enemySprite,
-                        0, 0, enemySprite.width, enemySprite.height,
-                        drawStartX, drawStartY, scaledWidth, scaledHeight
-                    );
+        // Size, preserving the image's aspect ratio so tall art isn't squished
+        const srcW = img.naturalWidth || img.width || 1;
+        const srcH = img.naturalHeight || img.height || 1;
+        const drawHeight = cellSize * config.heightScale;
+        const drawWidth = drawHeight * (srcW / srcH);
 
-                    // Draw enemy health indicator
-                    drawEnemyHealth(sprite, drawStartX, drawStartY, scaledWidth);
-                } else if (sprite.type === 'weapon' && weaponSprite.complete) {
-                    ctx.drawImage(
-                        weaponSprite,
-                        0, 0, weaponSprite.width, weaponSprite.height,
-                        drawStartX, drawStartY, scaledWidth, scaledHeight
-                    );
-                } else if (sprite.type === 'potion' && potionSprite.complete) {
-                    ctx.drawImage(
-                        potionSprite,
-                        0, 0, potionSprite.width, potionSprite.height,
-                        drawStartX, drawStartY, scaledWidth, scaledHeight
-                    );
-                } else {
-                    // Fallback to colored rectangle
-                    if (sprite.type === 'enemy') {
-                        ctx.fillStyle = 'red';
-                    } else if (sprite.type === 'weapon') {
-                        ctx.fillStyle = 'yellow';
-                    } else if (sprite.type === 'potion') {
-                        ctx.fillStyle = 'purple';
-                    }
-                    ctx.fillRect(drawStartX, drawStartY, scaledWidth, scaledHeight);
-                }
+        // Anchor the bottom of the sprite to the floor line, then apply hover + bob
+        const floorY = canvas.height / 2 + cellSize / 2;
+        const bottomY = floorY - config.lift * cellSize - bob;
+        const drawStartY = bottomY - drawHeight;
+        const drawStartX = spriteScreenX - drawWidth / 2 + sway;
+        const drawEndX = drawStartX + drawWidth;
+
+        // Off-screen culling
+        if (drawEndX < 0 || drawStartX >= canvas.width || bottomY < 0 || drawStartY >= canvas.height) {
+            return;
+        }
+
+        if (img.complete && srcW > 1) {
+            // Distance shading for depth and atmosphere
+            const brightness = Math.max(0.5, Math.min(1, 1 - depth / 16));
+            const shaded = getShadedSprite(img, brightness);
+            const shadedH = shaded.height;
+
+            // Draw column-by-column so wall edges can partially occlude the sprite
+            const startX = Math.max(0, Math.floor(drawStartX));
+            const endX = Math.min(canvas.width - 1, Math.ceil(drawEndX));
+            for (let x = startX; x <= endX; x++) {
+                if (depth >= zBuffer[x]) continue; // Hidden behind a wall at this column
+                let texX = Math.floor(((x - drawStartX) / drawWidth) * shaded.width);
+                if (texX < 0) texX = 0;
+                if (texX >= shaded.width) texX = shaded.width - 1;
+                ctx.drawImage(
+                    shaded,
+                    texX, 0, 1, shadedH,
+                    x, drawStartY, 1, drawHeight
+                );
+            }
+
+            if (sprite.type === 'enemy') {
+                drawEnemyHealth(sprite, drawStartX, drawStartY, drawWidth);
+            }
+        } else {
+            // Fallback colour block, still floor-anchored and occlusion-tested at its centre
+            const spriteMiddleX = Math.floor(spriteScreenX);
+            if (spriteMiddleX >= 0 && spriteMiddleX < canvas.width && depth < zBuffer[spriteMiddleX]) {
+                if (sprite.type === 'enemy') ctx.fillStyle = 'red';
+                else if (sprite.type === 'weapon') ctx.fillStyle = 'yellow';
+                else ctx.fillStyle = 'purple';
+                ctx.fillRect(drawStartX, drawStartY, drawWidth, drawHeight);
             }
         }
     });
@@ -852,6 +906,10 @@ function drawSword() {
 
 const keys = {};
 
+// Continuous input from on-screen touch controls (mobile).
+// move/turn are joystick axes in [-1, 1]; lookDelta accumulates drag-to-turn (radians).
+const touchInput = { move: 0, turn: 0, lookDelta: 0 };
+
 window.addEventListener('keydown', function(e) {
     keys[e.code] = true;
 
@@ -880,6 +938,11 @@ function movePlayer() {
         moveStep = -player.speed;
     }
 
+    // Joystick forward/back (additive, then clamped to walking speed)
+    moveStep += touchInput.move * player.speed;
+    if (moveStep > player.speed) moveStep = player.speed;
+    if (moveStep < -player.speed) moveStep = -player.speed;
+
     // Calculate new position
     const newX = player.x + Math.cos(player.dir) * moveStep;
     const newY = player.y + Math.sin(player.dir) * moveStep;
@@ -898,6 +961,11 @@ function movePlayer() {
     if (keys['ArrowRight'] || keys['KeyD']) {
         player.dir += player.turnSpeed;
     }
+
+    // Touch turning: joystick X axis plus drag-to-look on the right of the screen
+    player.dir += touchInput.turn * player.turnSpeed;
+    player.dir += touchInput.lookDelta;
+    touchInput.lookDelta = 0; // Consume accumulated drag each frame
 
     // Keep the angle between 0 and 2PI
     if (player.dir < 0) {
@@ -1237,8 +1305,103 @@ gameLoop();
 // 25. Handle Page Resize
 // ========================
 
-window.addEventListener('resize', function() {
+function resizeCanvas() {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
-    // Optionally, redraw mini-map or other elements if necessary
+}
+
+window.addEventListener('resize', resizeCanvas);
+// iOS reports new dimensions slightly after orientationchange fires
+window.addEventListener('orientationchange', function() {
+    resizeCanvas();
+    setTimeout(resizeCanvas, 300);
 });
+
+// ========================
+// 26. On-Screen Touch Controls (Mobile)
+// ========================
+
+function setupTouchControls() {
+    const controls = document.getElementById('touchControls');
+    const joystick = document.getElementById('joystick');
+    const thumb = document.getElementById('joystickThumb');
+    const lookArea = document.getElementById('lookArea');
+    const attackBtn = document.getElementById('attackButton');
+    if (!controls || !joystick || !thumb || !lookArea || !attackBtn) return;
+
+    // Only surface the controls on touch-capable devices; desktop keeps keyboard only
+    const isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+    if (!isTouch) return;
+    controls.classList.remove('hidden');
+
+    // --- Virtual joystick: vertical = move, horizontal = turn ---
+    const maxRadius = 55; // px of thumb travel mapped to full axis deflection
+    let joyId = null;
+
+    function joyUpdate(e) {
+        const rect = joystick.getBoundingClientRect();
+        const cx = rect.left + rect.width / 2;
+        const cy = rect.top + rect.height / 2;
+        let dx = e.clientX - cx;
+        let dy = e.clientY - cy;
+        const dist = Math.hypot(dx, dy);
+        if (dist > maxRadius) {
+            dx = (dx / dist) * maxRadius;
+            dy = (dy / dist) * maxRadius;
+        }
+        thumb.style.transform = 'translate(' + dx + 'px, ' + dy + 'px)';
+        touchInput.turn = dx / maxRadius;   // right = turn right
+        touchInput.move = -dy / maxRadius;  // up = move forward
+    }
+    joystick.addEventListener('pointerdown', function(e) {
+        joyId = e.pointerId;
+        joystick.setPointerCapture(e.pointerId);
+        joyUpdate(e);
+        e.preventDefault();
+    });
+    joystick.addEventListener('pointermove', function(e) {
+        if (e.pointerId !== joyId) return;
+        joyUpdate(e);
+        e.preventDefault();
+    });
+    function joyEnd(e) {
+        if (e.pointerId !== joyId) return;
+        joyId = null;
+        thumb.style.transform = 'translate(0px, 0px)';
+        touchInput.move = 0;
+        touchInput.turn = 0;
+    }
+    joystick.addEventListener('pointerup', joyEnd);
+    joystick.addEventListener('pointercancel', joyEnd);
+
+    // --- Drag anywhere on the right to turn/look ---
+    const lookSensitivity = 0.005; // radians per pixel dragged
+    let lookId = null;
+    let lastX = 0;
+    lookArea.addEventListener('pointerdown', function(e) {
+        lookId = e.pointerId;
+        lastX = e.clientX;
+        lookArea.setPointerCapture(e.pointerId);
+        e.preventDefault();
+    });
+    lookArea.addEventListener('pointermove', function(e) {
+        if (e.pointerId !== lookId) return;
+        touchInput.lookDelta += (e.clientX - lastX) * lookSensitivity;
+        lastX = e.clientX;
+        e.preventDefault();
+    });
+    function lookEnd(e) {
+        if (e.pointerId !== lookId) return;
+        lookId = null;
+    }
+    lookArea.addEventListener('pointerup', lookEnd);
+    lookArea.addEventListener('pointercancel', lookEnd);
+
+    // --- Attack button ---
+    attackBtn.addEventListener('pointerdown', function(e) {
+        e.preventDefault();
+        attack();
+    });
+}
+
+setupTouchControls();
