@@ -1658,11 +1658,16 @@ function drawMiniMap() {
 // For this example, we redirect to separate HTML files.
 
 function showGameOver() {
+    if (gameState !== 'running') return; // only trigger once
     gameState = 'gameover';
-    // Store the final score in Local Storage
     localStorage.setItem('finalScore', score);
-    // Redirect to gameover.html
-    window.location.href = 'gameover.html';
+    // Reveal the in-game death screen with the floor reached and final score
+    const floorEl = document.getElementById('deathFloor');
+    if (floorEl) floorEl.textContent = currentLevel;
+    const scoreEl = document.getElementById('deathScore');
+    if (scoreEl) scoreEl.textContent = score;
+    const overlay = document.getElementById('deathOverlay');
+    if (overlay) overlay.classList.remove('hidden');
 }
 
 function showVictory() {
@@ -1830,12 +1835,12 @@ function setupStory() {
         });
     }
 
-    if (playAgainBtn) {
-        // Cleanest reset of all floor state: reload the page (intro shows again)
-        playAgainBtn.addEventListener('click', function () {
-            window.location.reload();
-        });
-    }
+    // Both "Play Again" (epilogue) and "Rise Again" (death) reset via reload,
+    // which cleanly rebuilds all floor state and shows the intro again.
+    const restartBtn = document.getElementById('restartButton');
+    [playAgainBtn, restartBtn].forEach(function (btn) {
+        if (btn) btn.addEventListener('click', function () { window.location.reload(); });
+    });
 }
 
 setupStory();

@@ -33,6 +33,21 @@
         </div>
     </div>
 
+    <!-- Death screen (shown when the knight falls) -->
+    <div id="deathOverlay" class="overlay story hidden">
+        <div class="overlay-content story-content">
+            <h1>You Have Fallen</h1>
+            <div class="story-text">
+                <p>Your blade slips from your grasp. The alien horde closes over you, and the cold stone of the castle rises to meet you.</p>
+                <p>Somewhere above, the royal family waits in the dark for a rescue that will not come &mdash; not today.</p>
+                <p>But Eldenmoor remembers its knights. From the ruin of the realm another will rise, take up the sword, and climb where you fell.</p>
+                <p>The siege is not yet lost.</p>
+            </div>
+            <p class="story-score">Reached Floor <span id="deathFloor">1</span> &middot; Final Score: <span id="deathScore">0</span></p>
+            <button id="restartButton">Rise Again</button>
+        </div>
+    </div>
+
     <!-- Epilogue (shown when the dragon is defeated) -->
     <div id="epilogueOverlay" class="overlay story hidden">
         <div class="overlay-content story-content">
