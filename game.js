@@ -1055,6 +1055,14 @@ function castRays() {
             ctx.fillRect(i, drawStart, 1, drawEnd - drawStart);
         }
 
+        // Alien atmosphere: darken/tint walls with distance (fog) and by orientation
+        // (y-facing walls a touch darker for depth); distant walls melt into the teal mist.
+        const fog = Math.min(1, correctedDistance / 13);
+        let darkness = (side === 1 ? 0.22 : 0.08) + fog * 0.7;
+        if (darkness > 0.85) darkness = 0.85;
+        ctx.fillStyle = 'rgba(26, 46, 50, ' + darkness + ')';
+        ctx.fillRect(i, drawStart, 1, drawEnd - drawStart);
+
         zBuffer[i] = correctedDistance; // Save distance for sprite rendering
     }
 
@@ -1665,13 +1673,29 @@ function gameLoop() {
         // Clear the canvas
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // Draw ceiling
-        ctx.fillStyle = 'black';
+        // Draw ceiling — alien void above a vaulted hall (deep indigo fading to eerie teal)
+        const ceilGrad = ctx.createLinearGradient(0, 0, 0, canvas.height / 2);
+        ceilGrad.addColorStop(0, '#070611');
+        ceilGrad.addColorStop(0.7, '#160e2a');
+        ceilGrad.addColorStop(1, '#22383a');
+        ctx.fillStyle = ceilGrad;
         ctx.fillRect(0, 0, canvas.width, canvas.height / 2);
 
-        // Draw floor
-        ctx.fillStyle = 'grey';
+        // Draw floor — mossy alien stone (dark at the horizon, lighter underfoot)
+        const floorGrad = ctx.createLinearGradient(0, canvas.height / 2, 0, canvas.height);
+        floorGrad.addColorStop(0, '#0e1214');
+        floorGrad.addColorStop(1, '#33433a');
+        ctx.fillStyle = floorGrad;
         ctx.fillRect(0, canvas.height / 2, canvas.width, canvas.height / 2);
+
+        // Eerie mist glowing along the horizon line
+        const horizon = canvas.height / 2;
+        const glow = ctx.createLinearGradient(0, horizon - 28, 0, horizon + 28);
+        glow.addColorStop(0, 'rgba(60,120,110,0)');
+        glow.addColorStop(0.5, 'rgba(70,140,125,0.16)');
+        glow.addColorStop(1, 'rgba(60,120,110,0)');
+        ctx.fillStyle = glow;
+        ctx.fillRect(0, horizon - 28, canvas.width, 56);
 
         // Render walls and sprites
         castRays();
