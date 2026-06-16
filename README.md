@@ -52,10 +52,6 @@ Welcome to the **3D Maze Game**, an immersive browser-based game. The game is a 
 
 To get started with the **3D Maze Game**, follow the steps below:
 
-## Installation
-
-To get started with the **3D Maze Game**, follow the steps below:
-
 1. **Clone the Repository**
 
    ```bash
@@ -126,7 +122,7 @@ Here's an overview of the project's file structure:
 3d-maze-game/
 ├── index.html
 ├── gameover.html
-├── levelcomplete.html
+├── levelcomplete.html   (legacy, no longer used)
 ├── game.js
 ├── styles.css
 ├── README.md
@@ -136,22 +132,21 @@ Here's an overview of the project's file structure:
     ├── wall_64.png
     ├── wall_32.png
     ├── wall_16.png
-    ├── enemy.png
     ├── weapon.png
     ├── sword.png
     ├── potion.png
 ```
 
 - **index.html**: The main game page where gameplay occurs.
-- **gameover.html**: Displayed when the player dies, showing the final score and an option to restart.
-- **levelcomplete.html**: Shown upon completing a level, indicating progression to the next level.
-- **game.js**: Contains all the game logic, including rendering, player controls, enemy behavior, and level management.
-- **styles.css**: Styles for the game and overlays.
-- **textures/**: Directory containing all image assets used in the game.
+- **gameover.html**: Displayed when the player dies or wins, showing the final score and an option to restart.
+- **levelcomplete.html**: Legacy screen from the original level system; no longer used now that floors transition in place (kept for reference).
+- **game.js**: Contains all the game logic — raycasting/rendering, player and touch controls, enemy behavior, the floor/stairs system, and the procedurally-drawn creatures, dragon boss, and staircases.
+- **styles.css**: Styles for the game, overlays, and on-screen touch controls.
+- **textures/**: Wall and item images. Enemies, the dragon, and staircases are drawn procedurally in code (no sprite files); the old `enemy.png` is retained but unused.
 
 ## Credits
 
-This README, game,and graphics were 95% generated using GPT-4, GPT-4-turbo, and GPT-o1-mini.
+This project was originally generated using GPT-4, GPT-4-turbo, and GPT-o1-mini. Subsequent features — the mobile/touch controls, the multi-floor castle redesign (stairs, fog-of-war map, persistent enemies, dragon boss), and the procedurally-drawn "medieval space alien" creatures — were built with Claude (Anthropic).
 
 ## License
 
