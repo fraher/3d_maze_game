@@ -130,7 +130,19 @@ const levels = [
         [1,0,1,0,0,0,1,0,1,1,1,0,0,0,0,1],
         [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
         [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
-           
+
+    ],
+    // Level 11 - Dragon's Lair: one large empty floor for the boss fight
+    [
+        [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+        [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+        [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+        [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+        [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+        [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+        [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+        [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+        [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
     ]
 ];
 
@@ -193,6 +205,345 @@ swordSprite.src = 'textures/sword.png'; // Ensure this image exists
 
 const potionSprite = new Image();
 potionSprite.src = 'textures/potion.png'; // Add a potion sprite image
+
+// ========================
+// 4b. Enemy Types
+// ========================
+// Each floor N introduces N distinct enemy types (floor 1 has 1, floor 2 has 2, ...).
+// Every type is a hand-drawn "medieval space alien": `form` picks the silhouette,
+// `color` is the body, `glow` is the plasma/eye colour. Stats escalate by floor.
+const enemyTypes = [
+    { name: 'Ooze Trooper',  form: 'ooze',    color: '#5db84a', glow: '#bcff8a', health: 60,  speed: 0.015, damage: 0.05, score: 1,  scale: 0.85 },
+    { name: 'Void Bat',      form: 'bat',     color: '#c2384a', glow: '#ff9aa0', health: 80,  speed: 0.022, damage: 0.06, score: 2,  scale: 0.80 },
+    { name: 'Spire Crawler', form: 'spider',  color: '#e08a2a', glow: '#ffe28a', health: 110, speed: 0.018, damage: 0.07, score: 3,  scale: 0.90 },
+    { name: 'Star Ghoul',    form: 'ghoul',   color: '#2fa3b8', glow: '#aef0ff', health: 140, speed: 0.019, damage: 0.08, score: 4,  scale: 0.95 },
+    { name: 'Plasma Wraith', form: 'wraith',  color: '#b145d6', glow: '#f0b6ff', health: 170, speed: 0.020, damage: 0.09, score: 5,  scale: 1.00 },
+    { name: 'Iron Golem',    form: 'golem',   color: '#7d6a55', glow: '#ffd27a', health: 230, speed: 0.013, damage: 0.11, score: 6,  scale: 1.15 },
+    { name: 'Comet Reaper',  form: 'reaper',  color: '#cfc24a', glow: '#fdffb0', health: 200, speed: 0.024, damage: 0.10, score: 7,  scale: 1.00 },
+    { name: 'Nebula Specter',form: 'specter', color: '#3f6fd0', glow: '#b6d4ff', health: 240, speed: 0.021, damage: 0.11, score: 8,  scale: 1.05 },
+    { name: 'Warp Demon',    form: 'demon',   color: '#b22a2a', glow: '#ff7a5a', health: 300, speed: 0.020, damage: 0.13, score: 9,  scale: 1.10 },
+    { name: 'Rune Warlock',  form: 'warlock', color: '#6a4fb0', glow: '#c9b6ff', health: 360, speed: 0.018, damage: 0.14, score: 10, scale: 1.10 }
+];
+
+// The floor 11 boss: a single massive alien dragon
+const bossType = { name: 'Alien Dragon', form: 'dragon', color: '#6a1b9a', glow: '#7affea', health: 2600, speed: 0.011, damage: 0.22, score: 100, scale: 3.2 };
+
+// ========================
+// 4c. Procedural Sprite Helpers (creatures + stairs)
+// ========================
+
+// Shared "medieval" metal for helmets, plates, blades and horns
+const ARMOR = '#c2c9d4';
+const ARMOR_DARK = '#8a93a1';
+const ESW = 100, ESH = 140; // default creature canvas size
+
+// Lighten (f>0) or darken (f<0) a #rrggbb colour by fraction f.
+function shade(hex, f) {
+    const n = parseInt(hex.slice(1), 16);
+    let r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+    if (f < 0) { const k = 1 + f; r *= k; g *= k; b *= k; }
+    else { r += (255 - r) * f; g += (255 - g) * f; b += (255 - b) * f; }
+    return 'rgb(' + (r | 0) + ',' + (g | 0) + ',' + (b | 0) + ')';
+}
+
+// A glowing alien eye (bright halo with a dark pupil)
+function drawGlowEye(g, x, y, r, glow) {
+    g.save();
+    g.shadowColor = glow;
+    g.shadowBlur = 10;
+    g.fillStyle = glow;
+    g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+    g.shadowBlur = 0;
+    g.fillStyle = '#0b0b16';
+    g.beginPath(); g.arc(x, y, r * 0.4, 0, Math.PI * 2); g.fill();
+    g.restore();
+}
+
+// Each form draws a distinct creature onto a transparent canvas, feet near the
+// bottom so it floor-anchors. `c` = { main, dark, light, glow }.
+const enemyForms = {
+    ooze(g, c) {
+        g.fillStyle = c.main; // gloopy body
+        g.beginPath();
+        g.moveTo(18, 132);
+        g.bezierCurveTo(8, 95, 14, 64, 50, 62);
+        g.bezierCurveTo(86, 64, 92, 95, 82, 132);
+        g.quadraticCurveTo(50, 122, 18, 132);
+        g.closePath(); g.fill();
+        g.fillStyle = c.light;
+        g.beginPath(); g.ellipse(40, 88, 9, 13, -0.3, 0, 7); g.fill();
+        g.fillStyle = ARMOR; // knight's helm
+        g.beginPath(); g.arc(50, 62, 28, Math.PI, 2 * Math.PI); g.closePath(); g.fill();
+        g.fillStyle = ARMOR_DARK; g.fillRect(22, 58, 56, 6);
+        g.save(); g.shadowColor = c.glow; g.shadowBlur = 10; g.fillStyle = c.glow;
+        g.fillRect(32, 49, 36, 5); g.restore(); // visor slit
+        drawGlowEye(g, 41, 96, 6, c.glow);
+        drawGlowEye(g, 61, 96, 6, c.glow);
+        g.fillStyle = c.main;
+        g.beginPath(); g.arc(30, 132, 5, 0, 7); g.arc(70, 130, 4, 0, 7); g.fill();
+    },
+    bat(g, c) {
+        g.fillStyle = c.dark; // membranous wings
+        g.beginPath();
+        g.moveTo(50, 70); g.lineTo(6, 48); g.lineTo(16, 70); g.lineTo(4, 78);
+        g.lineTo(20, 84); g.lineTo(10, 98); g.lineTo(50, 88); g.closePath(); g.fill();
+        g.beginPath();
+        g.moveTo(50, 70); g.lineTo(94, 48); g.lineTo(84, 70); g.lineTo(96, 78);
+        g.lineTo(80, 84); g.lineTo(90, 98); g.lineTo(50, 88); g.closePath(); g.fill();
+        g.fillStyle = c.main; // body
+        g.beginPath(); g.ellipse(50, 88, 15, 26, 0, 0, 7); g.fill();
+        g.beginPath(); // ears
+        g.moveTo(40, 66); g.lineTo(44, 50); g.lineTo(48, 66); g.closePath();
+        g.moveTo(52, 66); g.lineTo(56, 50); g.lineTo(60, 66); g.closePath(); g.fill();
+        drawGlowEye(g, 44, 84, 5, c.glow);
+        drawGlowEye(g, 56, 84, 5, c.glow);
+        g.fillStyle = '#fff'; // fangs
+        g.beginPath();
+        g.moveTo(46, 100); g.lineTo(48, 108); g.lineTo(50, 100); g.closePath();
+        g.moveTo(52, 100); g.lineTo(54, 108); g.lineTo(56, 100); g.closePath(); g.fill();
+    },
+    spider(g, c) {
+        g.strokeStyle = c.dark; g.lineWidth = 5; g.lineCap = 'round';
+        for (let i = 0; i < 4; i++) {
+            const yy = 80 + i * 9;
+            g.beginPath(); g.moveTo(46, yy); g.lineTo(18, yy - 8); g.lineTo(8, yy + 8); g.stroke();
+            g.beginPath(); g.moveTo(54, yy); g.lineTo(82, yy - 8); g.lineTo(92, yy + 8); g.stroke();
+        }
+        g.fillStyle = c.main; // abdomen
+        g.beginPath(); g.ellipse(50, 112, 24, 22, 0, 0, 7); g.fill();
+        g.fillStyle = c.light; // head
+        g.beginPath(); g.ellipse(50, 82, 18, 16, 0, 0, 7); g.fill();
+        drawGlowEye(g, 44, 78, 4, c.glow); drawGlowEye(g, 56, 78, 4, c.glow);
+        drawGlowEye(g, 40, 86, 3, c.glow); drawGlowEye(g, 60, 86, 3, c.glow);
+        drawGlowEye(g, 50, 84, 3, c.glow);
+        g.fillStyle = ARMOR; g.fillRect(44, 92, 12, 6); // mandible plate
+    },
+    ghoul(g, c) {
+        g.fillStyle = c.main; // tattered cloak
+        g.beginPath();
+        g.moveTo(50, 40); g.lineTo(82, 96); g.lineTo(74, 110); g.lineTo(66, 98);
+        g.lineTo(58, 116); g.lineTo(50, 100); g.lineTo(42, 116); g.lineTo(34, 98);
+        g.lineTo(26, 110); g.lineTo(18, 96); g.closePath(); g.fill();
+        g.fillStyle = '#0a0c14'; // hood shadow
+        g.beginPath(); g.ellipse(50, 64, 16, 20, 0, 0, 7); g.fill();
+        drawGlowEye(g, 44, 62, 5, c.glow);
+        drawGlowEye(g, 56, 62, 5, c.glow);
+        g.fillStyle = ARMOR; // pauldrons
+        g.beginPath(); g.ellipse(30, 80, 9, 6, 0.4, 0, 7); g.fill();
+        g.beginPath(); g.ellipse(70, 80, 9, 6, -0.4, 0, 7); g.fill();
+    },
+    wraith(g, c) {
+        g.save(); g.globalAlpha = 0.85; g.fillStyle = c.main;
+        g.beginPath();
+        g.moveTo(50, 44);
+        g.bezierCurveTo(78, 60, 70, 100, 60, 124);
+        g.quadraticCurveTo(50, 112, 40, 124);
+        g.bezierCurveTo(30, 100, 22, 60, 50, 44);
+        g.closePath(); g.fill(); g.restore();
+        g.save(); g.shadowColor = c.glow; g.shadowBlur = 16; g.fillStyle = c.glow;
+        g.beginPath(); g.arc(50, 88, 7, 0, 7); g.fill(); g.restore(); // core
+        g.strokeStyle = c.light; g.lineWidth = 5; g.lineCap = 'round';
+        g.beginPath(); g.moveTo(40, 72); g.lineTo(22, 84); g.stroke();
+        g.beginPath(); g.moveTo(60, 72); g.lineTo(78, 84); g.stroke();
+        drawGlowEye(g, 44, 60, 5, c.glow);
+        drawGlowEye(g, 56, 60, 5, c.glow);
+    },
+    golem(g, c) {
+        g.fillStyle = c.dark; g.fillRect(32, 110, 14, 24); g.fillRect(54, 110, 14, 24); // legs
+        g.fillStyle = c.main; g.fillRect(26, 64, 48, 52); // torso
+        g.fillStyle = ARMOR; g.fillRect(26, 64, 48, 10); // chest plate
+        g.fillStyle = ARMOR_DARK;
+        for (let i = 0; i < 3; i++) { g.beginPath(); g.arc(36 + i * 14, 69, 2, 0, 7); g.fill(); }
+        g.fillStyle = c.main; g.fillRect(12, 70, 14, 40); g.fillRect(74, 70, 14, 40); // arms
+        g.fillStyle = c.dark;
+        g.beginPath(); g.arc(19, 112, 9, 0, 7); g.arc(81, 112, 9, 0, 7); g.fill(); // fists
+        g.fillStyle = ARMOR; g.fillRect(38, 44, 24, 22); // helm
+        g.fillStyle = ARMOR_DARK; g.fillRect(38, 44, 24, 4);
+        g.save(); g.shadowColor = c.glow; g.shadowBlur = 10; g.fillStyle = c.glow;
+        g.fillRect(42, 54, 16, 4); g.restore(); // eye visor
+    },
+    reaper(g, c) {
+        g.strokeStyle = '#6b5436'; g.lineWidth = 5; g.lineCap = 'round'; // scythe pole
+        g.beginPath(); g.moveTo(74, 30); g.lineTo(66, 128); g.stroke();
+        g.fillStyle = ARMOR; // blade
+        g.beginPath(); g.moveTo(74, 30); g.quadraticCurveTo(38, 26, 34, 50);
+        g.quadraticCurveTo(58, 40, 74, 44); g.closePath(); g.fill();
+        g.fillStyle = c.main; // cloak
+        g.beginPath();
+        g.moveTo(50, 44); g.lineTo(78, 120); g.lineTo(60, 112); g.lineTo(50, 124);
+        g.lineTo(40, 112); g.lineTo(22, 120); g.closePath(); g.fill();
+        g.fillStyle = c.dark;
+        g.beginPath(); g.moveTo(34, 58); g.quadraticCurveTo(50, 34, 66, 58);
+        g.quadraticCurveTo(50, 66, 34, 58); g.fill();
+        g.fillStyle = '#0a0c14';
+        g.beginPath(); g.ellipse(50, 58, 12, 14, 0, 0, 7); g.fill();
+        drawGlowEye(g, 45, 58, 4, c.glow);
+        drawGlowEye(g, 55, 58, 4, c.glow);
+    },
+    specter(g, c) {
+        g.save(); g.globalAlpha = 0.8; g.fillStyle = c.main;
+        g.beginPath();
+        g.moveTo(50, 46);
+        g.bezierCurveTo(80, 56, 74, 104, 66, 122);
+        g.lineTo(58, 112); g.lineTo(50, 122); g.lineTo(42, 112); g.lineTo(34, 122);
+        g.bezierCurveTo(26, 104, 20, 56, 50, 46);
+        g.closePath(); g.fill(); g.restore();
+        g.fillStyle = c.glow; // star speckles
+        const stars = [[40, 70], [60, 64], [52, 90], [36, 100], [64, 96], [48, 78]];
+        for (const s of stars) { g.beginPath(); g.arc(s[0], s[1], 1.6, 0, 7); g.fill(); }
+        drawGlowEye(g, 44, 64, 5, c.glow);
+        drawGlowEye(g, 56, 64, 5, c.glow);
+    },
+    demon(g, c) {
+        g.fillStyle = c.dark; // bat wings
+        g.beginPath(); g.moveTo(34, 72); g.lineTo(10, 60); g.lineTo(18, 86); g.lineTo(34, 90); g.closePath(); g.fill();
+        g.beginPath(); g.moveTo(66, 72); g.lineTo(90, 60); g.lineTo(82, 86); g.lineTo(66, 90); g.closePath(); g.fill();
+        g.fillStyle = c.dark; g.fillRect(38, 112, 10, 22); g.fillRect(52, 112, 10, 22); // legs
+        g.fillStyle = c.main;
+        g.beginPath(); g.moveTo(34, 72); g.lineTo(66, 72); g.lineTo(62, 116); g.lineTo(38, 116); g.closePath(); g.fill();
+        g.fillStyle = ARMOR; // chest plate
+        g.beginPath(); g.moveTo(42, 78); g.lineTo(58, 78); g.lineTo(50, 96); g.closePath(); g.fill();
+        g.fillStyle = c.main; g.beginPath(); g.arc(50, 60, 14, 0, 7); g.fill(); // head
+        g.fillStyle = ARMOR; // horns
+        g.beginPath(); g.moveTo(40, 52); g.lineTo(30, 38); g.lineTo(44, 48); g.closePath();
+        g.moveTo(60, 52); g.lineTo(70, 38); g.lineTo(56, 48); g.closePath(); g.fill();
+        drawGlowEye(g, 44, 60, 4, c.glow);
+        drawGlowEye(g, 56, 60, 4, c.glow);
+        g.strokeStyle = c.glow; g.lineWidth = 2;
+        g.beginPath(); g.moveTo(44, 68); g.lineTo(56, 68); g.stroke();
+    },
+    warlock(g, c) {
+        g.strokeStyle = '#6b5436'; g.lineWidth = 4; g.lineCap = 'round'; // staff
+        g.beginPath(); g.moveTo(30, 40); g.lineTo(34, 128); g.stroke();
+        g.save(); g.shadowColor = c.glow; g.shadowBlur = 16; g.fillStyle = c.glow;
+        g.beginPath(); g.arc(30, 36, 8, 0, 7); g.fill(); g.restore(); // orb
+        g.fillStyle = c.main; // robe
+        g.beginPath(); g.moveTo(50, 46); g.lineTo(74, 124); g.lineTo(50, 118); g.lineTo(26, 124); g.closePath(); g.fill();
+        g.strokeStyle = c.glow; g.lineWidth = 2;
+        g.beginPath(); g.moveTo(50, 46); g.lineTo(74, 124); g.moveTo(50, 46); g.lineTo(26, 124); g.stroke();
+        g.fillStyle = c.dark;
+        g.beginPath(); g.moveTo(38, 64); g.quadraticCurveTo(50, 40, 62, 64);
+        g.quadraticCurveTo(50, 72, 38, 64); g.fill();
+        g.fillStyle = '#0a0c14';
+        g.beginPath(); g.ellipse(50, 62, 11, 13, 0, 0, 7); g.fill();
+        drawGlowEye(g, 45, 62, 4, c.glow);
+        drawGlowEye(g, 55, 62, 4, c.glow);
+        g.fillStyle = c.glow; // runes
+        g.beginPath(); g.arc(50, 94, 2, 0, 7); g.arc(46, 104, 1.6, 0, 7); g.arc(54, 104, 1.6, 0, 7); g.fill();
+    },
+    dragon(g, c, w) {
+        const cx = w / 2;
+        g.fillStyle = c.dark; // wings
+        g.beginPath();
+        g.moveTo(cx - 10, 60); g.lineTo(8, 28); g.lineTo(20, 58); g.lineTo(6, 64);
+        g.lineTo(24, 76); g.lineTo(14, 92); g.lineTo(cx - 12, 84); g.closePath(); g.fill();
+        g.beginPath();
+        g.moveTo(cx + 10, 60); g.lineTo(w - 8, 28); g.lineTo(w - 20, 58); g.lineTo(w - 6, 64);
+        g.lineTo(w - 24, 76); g.lineTo(w - 14, 92); g.lineTo(cx + 12, 84); g.closePath(); g.fill();
+        g.strokeStyle = shade(c.dark, -0.2); g.lineWidth = 2; // wing ribs
+        g.beginPath();
+        g.moveTo(cx - 10, 60); g.lineTo(8, 28); g.moveTo(cx - 10, 60); g.lineTo(6, 64); g.moveTo(cx - 10, 60); g.lineTo(14, 92);
+        g.moveTo(cx + 10, 60); g.lineTo(w - 8, 28); g.moveTo(cx + 10, 60); g.lineTo(w - 6, 64); g.moveTo(cx + 10, 60); g.lineTo(w - 14, 92);
+        g.stroke();
+        g.strokeStyle = c.main; g.lineWidth = 10; g.lineCap = 'round'; // tail
+        g.beginPath(); g.moveTo(cx, 100); g.quadraticCurveTo(cx + 32, 122, cx + 42, 110); g.stroke();
+        g.fillStyle = c.main; // body
+        g.beginPath(); g.ellipse(cx, 92, 22, 30, 0, 0, 7); g.fill();
+        g.fillStyle = c.light; // belly
+        g.beginPath(); g.ellipse(cx, 96, 11, 22, 0, 0, 7); g.fill();
+        g.strokeStyle = c.main; g.lineWidth = 16; g.lineCap = 'round'; // neck
+        g.beginPath(); g.moveTo(cx, 78); g.quadraticCurveTo(cx - 6, 50, cx - 2, 40); g.stroke();
+        g.fillStyle = c.main; // head
+        g.beginPath(); g.ellipse(cx - 2, 36, 16, 13, -0.2, 0, 7); g.fill();
+        g.beginPath(); g.moveTo(cx - 16, 36); g.lineTo(cx - 32, 40); g.lineTo(cx - 14, 44); g.closePath(); g.fill(); // snout
+        g.fillStyle = ARMOR; // horns
+        g.beginPath(); g.moveTo(cx + 6, 28); g.lineTo(cx + 16, 14); g.lineTo(cx + 10, 30); g.closePath();
+        g.moveTo(cx - 4, 26); g.lineTo(cx + 2, 12); g.lineTo(cx + 2, 28); g.closePath(); g.fill();
+        drawGlowEye(g, cx - 6, 34, 5, c.glow);
+        g.save(); g.shadowColor = c.glow; g.shadowBlur = 12; g.fillStyle = c.glow;
+        g.beginPath(); g.arc(cx - 30, 41, 3, 0, 7); g.fill(); g.restore(); // nostril fire
+        g.strokeStyle = ARMOR; g.lineWidth = 3; g.lineCap = 'round'; // claws
+        g.beginPath();
+        g.moveTo(cx - 8, 118); g.lineTo(cx - 12, 126); g.moveTo(cx, 118); g.lineTo(cx, 127);
+        g.moveTo(cx + 8, 118); g.lineTo(cx + 12, 126); g.stroke();
+    }
+};
+
+// Render a creature for a type once and cache it on the type.
+function makeEnemySprite(type) {
+    const isDragon = type.form === 'dragon';
+    const w = isDragon ? 150 : ESW;
+    const h = isDragon ? 132 : ESH;
+    const cnv = document.createElement('canvas');
+    cnv.width = w; cnv.height = h;
+    const g = cnv.getContext('2d');
+    const c = {
+        main: type.color,
+        dark: shade(type.color, -0.38),
+        light: shade(type.color, 0.32),
+        glow: type.glow
+    };
+    (enemyForms[type.form] || enemyForms.ooze)(g, c, w, h);
+    cnv._cacheKey = 'enemy_' + type.form; // used by getShadedSprite's cache
+    return cnv;
+}
+
+// Build every creature sprite up front
+enemyTypes.forEach(t => { t.sprite = makeEnemySprite(t); });
+bossType.sprite = makeEnemySprite(bossType);
+
+// Build a simple glowing stairway marker (arrow over steps) on a transparent canvas.
+function makeStairsSprite(color, up) {
+    const size = 96;
+    const c = document.createElement('canvas');
+    c.width = size;
+    c.height = size;
+    const g = c.getContext('2d');
+
+    // Soft glow
+    const grad = g.createRadialGradient(size / 2, size / 2, 4, size / 2, size / 2, size / 2);
+    grad.addColorStop(0, color);
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    g.globalAlpha = 0.5;
+    g.fillStyle = grad;
+    g.fillRect(0, 0, size, size);
+    g.globalAlpha = 1;
+
+    // Steps
+    g.fillStyle = color;
+    g.strokeStyle = 'rgba(0,0,0,0.6)';
+    g.lineWidth = 2;
+    const steps = 4;
+    for (let i = 0; i < steps; i++) {
+        const sw = size * (0.35 + 0.12 * i);
+        const sh = size * 0.12;
+        const sx = (size - sw) / 2;
+        const sy = up ? (size * 0.78 - i * sh) : (size * 0.22 + i * sh);
+        g.fillRect(sx, sy, sw, sh);
+        g.strokeRect(sx, sy, sw, sh);
+    }
+
+    // Arrow indicating direction
+    g.fillStyle = '#ffffff';
+    g.beginPath();
+    if (up) {
+        g.moveTo(size / 2, size * 0.10);
+        g.lineTo(size * 0.66, size * 0.30);
+        g.lineTo(size * 0.34, size * 0.30);
+    } else {
+        g.moveTo(size / 2, size * 0.90);
+        g.lineTo(size * 0.66, size * 0.70);
+        g.lineTo(size * 0.34, size * 0.70);
+    }
+    g.closePath();
+    g.fill();
+
+    c._cacheKey = up ? 'stairsUp' : 'stairsDown';
+    return c;
+}
+
+const stairsUpSprite = makeStairsSprite('#46e6ff', true);
+const stairsDownSprite = makeStairsSprite('#ff9d3a', false);
 
 // ========================
 // 5. Sound Manager
@@ -274,36 +625,45 @@ const player = {
 // Initialize score
 let score = parseInt(localStorage.getItem('score')) || 0;
 
-// Initialize level
-let currentLevel = parseInt(localStorage.getItem('currentLevel')) || 1;
-const maxLevel = 10;
+// Current floor (1..11). A run always starts at floor 1; floors are kept in memory.
+let currentLevel = 1;
+const maxLevel = 11;        // Floor 11 is the dragon's lair
+const bossLevel = 11;
 
-// Enemies array
+// Active-floor state (these point at the current floor's data; see floor system below)
 let enemies = [];
-
-// Weapons array
 let weapons = [];
-
-// Health Potions array
 let healthPotions = [];
+let seen = [];              // Fog-of-war: which cells the player has seen
+let stairsUp = null;        // {x, y} cell of the up-staircase (null on top floor)
+let stairsDown = null;      // {x, y} cell of the down-staircase (null on floor 1)
+
+// Persistent per-floor state so enemies are never refreshed once generated
+const floorCache = {};
+
+// Stair-transition guard + floor-entry banner
+let lastStairs = null;      // stairs we just arrived on; ignored until we step away
+let floorBanner = null;     // { text, until } transient on-screen floor label
 
 // Player's weapon
 let playerWeapon = localStorage.getItem('weapon') || null;
 
 // Game State
-let gameState = 'running'; // 'running', 'gameover', 'levelcomplete', 'victory'
+let gameState = 'running'; // 'running', 'gameover', 'victory'
 
 // ========================
 // 8. Define Enemy Class
 // ========================
 
 class Enemy {
-    constructor(x, y, health = 100) {
+    constructor(x, y, type) {
         this.x = x; // Enemy's position on the map
         this.y = y;
-        this.health = health; // Enemy's health
-        this.speed = 0.02; // Movement speed
-        this.alive = true; // Is the enemy alive?
+        this.type = type;            // Enemy type definition (stats, colour, scale)
+        this.health = type.health;   // Current health
+        this.maxHealth = type.health; // For the health-bar ratio
+        this.speed = type.speed;     // Movement speed
+        this.alive = true;           // Is the enemy alive?
     }
 
     update() {
@@ -333,7 +693,7 @@ class Enemy {
             }
         } else {
             // Attack the player
-            player.health -= 0.1; // Adjust damage as needed
+            player.health -= this.type.damage; // Damage scales with enemy type
             soundManager.playDamageSound(); // Play damage sound
             if (player.health <= 0) {
                 player.health = 0;
@@ -375,105 +735,178 @@ class HealthPotion {
 // 11. Level Management Functions
 // ========================
 
-// Function to place enemies randomly
-function placeEnemies(numEnemies, enemyHealth) {
-    enemies = []; // Reset enemies array
-    for (let i = 0; i < numEnemies; i++) {
-        let placed = false;
-        while (!placed) {
-            const x = Math.floor(Math.random() * mapWidth);
-            const y = Math.floor(Math.random() * mapHeight);
-            if (map[y][x] === 0 && (Math.abs(x - player.x) > 2 || Math.abs(y - player.y) > 2)) {
-                enemies.push(new Enemy(x + 0.5, y + 0.5, enemyHealth));
-                placed = true;
+// Return the open cell (value 0) nearest to (tx, ty) via an expanding ring search.
+function nearestOpenCell(grid, tx, ty) {
+    const h = grid.length, w = grid[0].length;
+    if (grid[ty] && grid[ty][tx] === 0) return { x: tx, y: ty };
+    for (let r = 1; r < Math.max(w, h); r++) {
+        for (let dy = -r; dy <= r; dy++) {
+            for (let dx = -r; dx <= r; dx++) {
+                const x = tx + dx, y = ty + dy;
+                if (y >= 0 && y < h && x >= 0 && x < w && grid[y][x] === 0) return { x, y };
             }
         }
     }
+    return { x: 1, y: 1 };
 }
 
-// Function to place weapons randomly
-function placeWeaponsFunc(numWeapons) {
-    weapons = []; // Reset weapons array
-    for (let i = 0; i < numWeapons; i++) {
-        let placed = false;
-        while (!placed) {
-            const x = Math.floor(Math.random() * mapWidth);
-            const y = Math.floor(Math.random() * mapHeight);
-            if (map[y][x] === 0 && (Math.abs(x - player.x) > 2 || Math.abs(y - player.y) > 2)) {
-                weapons.push(new Weapon(x + 0.5, y + 0.5));
-                placed = true;
+// BFS over open cells from `start`; returns the reachable cell that is farthest away.
+function farthestOpenCell(grid, start) {
+    const h = grid.length, w = grid[0].length;
+    const visited = Array.from({ length: h }, () => new Array(w).fill(false));
+    const queue = [start];
+    visited[start.y][start.x] = true;
+    let farthest = start;
+    const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+    while (queue.length) {
+        const cell = queue.shift();
+        farthest = cell; // BFS dequeues in non-decreasing distance order
+        for (const [dx, dy] of dirs) {
+            const nx = cell.x + dx, ny = cell.y + dy;
+            if (nx >= 0 && nx < w && ny >= 0 && ny < h && !visited[ny][nx] && grid[ny][nx] === 0) {
+                visited[ny][nx] = true;
+                queue.push({ x: nx, y: ny });
             }
         }
     }
+    return farthest;
 }
 
-// Function to place health potions randomly
-function placeHealthPotions(numPotions) {
-    healthPotions = []; // Reset health potions array
-    for (let i = 0; i < numPotions; i++) {
-        let placed = false;
-        while (!placed) {
-            const x = Math.floor(Math.random() * mapWidth);
-            const y = Math.floor(Math.random() * mapHeight);
-            if (map[y][x] === 0 && (Math.abs(x - player.x) > 2 || Math.abs(y - player.y) > 2)) {
-                healthPotions.push(new HealthPotion(x + 0.5, y + 0.5));
-                placed = true;
-            }
+// Pick a random open cell at least `minDist` (Chebyshev) from every cell in `avoid`.
+function randomOpenCell(grid, avoid, minDist) {
+    const h = grid.length, w = grid[0].length;
+    for (let tries = 0; tries < 200; tries++) {
+        const x = Math.floor(Math.random() * w);
+        const y = Math.floor(Math.random() * h);
+        if (grid[y][x] !== 0) continue;
+        let ok = true;
+        for (const a of avoid) {
+            if (Math.max(Math.abs(x - a.x), Math.abs(y - a.y)) < minDist) { ok = false; break; }
         }
+        if (ok) return { x, y };
     }
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (grid[y][x] === 0) return { x, y };
+    return { x: 1, y: 1 };
 }
 
-// Function to load a specific level
-function loadLevel(levelNumber) {
-    if (levelNumber > levels.length) {
-        console.error('Level not defined!');
-        return;
+// Build every enemy for a floor (generated once, then persisted in the floor cache).
+function buildEnemies(n, grid, avoid) {
+    const list = [];
+    if (n === bossLevel) {
+        const cx = Math.floor(grid[0].length / 2), cy = Math.floor(grid.length / 2);
+        const cell = grid[cy][cx] === 0 ? { x: cx, y: cy } : nearestOpenCell(grid, cx, cy);
+        list.push(new Enemy(cell.x + 0.5, cell.y + 0.5, bossType));
+        return list;
+    }
+    const count = 4 + n * 2;
+    for (let i = 0; i < count; i++) {
+        const type = enemyTypes[i % n]; // round-robin guarantees all N types appear
+        const cell = randomOpenCell(grid, avoid, 2);
+        list.push(new Enemy(cell.x + 0.5, cell.y + 0.5, type));
+    }
+    return list;
+}
+
+function buildItems(count, grid, avoid, makeFn) {
+    const list = [];
+    for (let i = 0; i < count; i++) {
+        const cell = randomOpenCell(grid, avoid, 1);
+        list.push(makeFn(cell.x + 0.5, cell.y + 0.5));
+    }
+    return list;
+}
+
+// Generate a floor's complete, persistent state.
+function generateFloor(n) {
+    const grid = levels[n - 1].map(row => row.slice());
+    const h = grid.length, w = grid[0].length;
+
+    // Down-staircase at the entrance; up-staircase at the farthest reachable cell.
+    const base = nearestOpenCell(grid, 1, 1);
+    const far = farthestOpenCell(grid, base);
+    let sUp = null, sDown = null;
+    if (n === 1) {
+        sUp = far;            // first floor: only a way up
+    } else if (n === bossLevel) {
+        sDown = base;         // top floor: only a way back down
+    } else {
+        sDown = base;
+        sUp = far;
     }
 
-    // Set the current map
-    map.splice(0, map.length, ...levels[levelNumber - 1]);
+    const avoid = [base];
+    if (sUp) avoid.push(sUp);
+    if (sDown) avoid.push(sDown);
 
-    // Set map dimensions
-    mapHeight = map.length;
-    mapWidth = map[0].length;
+    const enemyList = buildEnemies(n, grid, avoid);
+    const weaponList = (n === bossLevel) ? [] : buildItems(1 + Math.floor(n / 3), grid, avoid, (x, y) => new Weapon(x, y));
+    const potionCount = (n === bossLevel) ? 3 : 1 + Math.floor(n / 2);
+    const potionList = buildItems(potionCount, grid, avoid, (x, y) => new HealthPotion(x, y));
+    const seenGrid = Array.from({ length: h }, () => new Array(w).fill(false));
 
-    // Increase difficulty: more enemies and higher health
-    const numEnemies = 5 + levelNumber * 2; // Example: starting at 5, increasing by 2 each level
-    const enemyHealth = 100 + levelNumber * 20; // Example: starting at 100, increasing by 20 each level
+    return {
+        number: n, map: grid, width: w, height: h,
+        enemies: enemyList, weapons: weaponList, healthPotions: potionList,
+        seen: seenGrid, stairsUp: sUp, stairsDown: sDown, spawn: base
+    };
+}
 
-    placeEnemies(numEnemies, enemyHealth);
+function getFloor(n) {
+    if (!floorCache[n]) floorCache[n] = generateFloor(n);
+    return floorCache[n];
+}
 
-    // Increase weapons: optional, can keep constant or increase
-    const numWeapons = 3 + Math.floor(levelNumber / 2); // Example: starting at 3, increasing by 1 every 2 levels
-    placeWeaponsFunc(numWeapons);
+// Face a direction that points toward an adjacent open cell.
+function facingFromCell(grid, cell) {
+    const dirs = [[1, 0, 0], [0, 1, Math.PI / 2], [-1, 0, Math.PI], [0, -1, -Math.PI / 2]];
+    for (const [dx, dy, ang] of dirs) {
+        const nx = cell.x + dx, ny = cell.y + dy;
+        if (grid[ny] && grid[ny][nx] === 0) return ang;
+    }
+    return 0;
+}
 
-    // Increase health potions: more potions in higher levels
-    const numPotions = 2 + Math.floor(levelNumber / 3); // Example: starting at 2, increasing by 1 every 3 levels
-    placeHealthPotions(numPotions);
+// Switch the active floor. `arrive` is 'start', 'up' (climbed) or 'down' (descended).
+function goToFloor(n, arrive) {
+    if (n < 1 || n > maxLevel) return;
 
-    // Reset player position and health
-    player.x = 1.5;
-    player.y = 1.5;
-    player.dir = 0;
-    player.health = 100;
+    const floor = getFloor(n);
+    currentLevel = n;
 
-    // Preserve the sword and its power level if the player has acquired one
-    if (player.sword) {
-        drawSword();
-        console.log('Sword carried over to the next level with power:', player.swordLevel);
+    // Point the active-floor globals at this floor's persistent data
+    map = floor.map;
+    mapHeight = floor.height;
+    mapWidth = floor.width;
+    enemies = floor.enemies;
+    weapons = floor.weapons;
+    healthPotions = floor.healthPotions;
+    seen = floor.seen;
+    stairsUp = floor.stairsUp;
+    stairsDown = floor.stairsDown;
+
+    // Where does the player appear?
+    let cell;
+    if (arrive === 'up') {
+        cell = floor.stairsDown || floor.spawn; // appear at the way back down
+        lastStairs = 'down';                    // don't instantly drop back down
+    } else if (arrive === 'down') {
+        cell = floor.stairsUp || floor.spawn;    // appear at the way back up
+        lastStairs = 'up';
+    } else {
+        cell = floor.spawn;
+        lastStairs = null;
     }
 
-    if (levelNumber === 1) {
-        // Reset sword level
-        player.swordLevel = 1;
+    player.x = cell.x + 0.5;
+    player.y = cell.y + 0.5;
+    player.dir = facingFromCell(floor.map, cell);
 
-        // Reset score
-        score = 0;
-    }
-    
-    // Store current level and score in Local Storage
-    localStorage.setItem('currentLevel', levelNumber);
-    localStorage.setItem('score', score);
+    floorBanner = {
+        text: n === bossLevel ? 'Floor 11 — Lair of the Alien Dragon' : 'Floor ' + n,
+        until: performance.now() + 1800
+    };
+
+    soundManager.playBeep(arrive === 'down' ? 320 : 520, 0.15, 0.4);
 }
 
 // ========================
@@ -552,6 +985,11 @@ function castRays() {
                 distanceToWall = 16; // Max distance
             } else if (map[mapY][mapX] === 1) {
                 hit = 1;
+            }
+
+            // Fog-of-war: reveal every cell this ray passes through (and the wall it hits)
+            if (mapX >= 0 && mapX < mapWidth && mapY >= 0 && mapY < mapHeight) {
+                seen[mapY][mapX] = true;
             }
         }
 
@@ -637,7 +1075,8 @@ function getShadedSprite(img, brightness) {
     const bucket = Math.round(brightness * 10) / 10;
     if (bucket >= 1) return img; // Full brightness: just use the original image
 
-    const key = (img.src || '') + '@' + bucket;
+    // Canvases (tinted enemies, stairs) carry _cacheKey since they have no .src
+    const key = (img._cacheKey || img.src || '') + '@' + bucket;
     if (shadedSpriteCache[key]) return shadedSpriteCache[key];
 
     const off = document.createElement('canvas');
@@ -658,86 +1097,28 @@ function getShadedSprite(img, brightness) {
 function renderSprites(zBuffer) {
     const sprites = [];
 
-    // Add enemies to sprites array
-    enemies.forEach(enemy => {
-        if (enemy.alive) {
-            const dx = enemy.x - player.x;
-            const dy = enemy.y - player.y;
-
-            const distance = Math.sqrt(dx * dx + dy * dy);
-
-            let angle = Math.atan2(dy, dx) - player.dir;
-
-            // Normalize angle between -PI and PI
-            while (angle < -Math.PI) angle += 2 * Math.PI;
-            while (angle > Math.PI) angle -= 2 * Math.PI;
-
-            // Sprite is within FOV
-            if (angle > -player.fov / 2 && angle < player.fov / 2) {
-                sprites.push({
-                    type: 'enemy',
-                    x: enemy.x,
-                    y: enemy.y,
-                    distance: distance,
-                    angle: angle
-                });
-            }
+    // Collect a billboard if it falls within the field of view
+    function pushSprite(obj, type, extra) {
+        const dx = obj.x - player.x;
+        const dy = obj.y - player.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        let angle = Math.atan2(dy, dx) - player.dir;
+        while (angle < -Math.PI) angle += 2 * Math.PI;
+        while (angle > Math.PI) angle -= 2 * Math.PI;
+        if (angle > -player.fov / 2 && angle < player.fov / 2) {
+            const s = { type: type, x: obj.x, y: obj.y, distance: distance, angle: angle };
+            if (extra) Object.assign(s, extra);
+            sprites.push(s);
         }
-    });
+    }
 
-    // Add weapons to sprites array
-    weapons.forEach(weapon => {
-        if (!weapon.pickedUp) {
-            const dx = weapon.x - player.x;
-            const dy = weapon.y - player.y;
+    enemies.forEach(enemy => { if (enemy.alive) pushSprite(enemy, 'enemy', { enemyRef: enemy }); });
+    weapons.forEach(weapon => { if (!weapon.pickedUp) pushSprite(weapon, 'weapon'); });
+    healthPotions.forEach(potion => { if (!potion.pickedUp) pushSprite(potion, 'potion'); });
 
-            const distance = Math.sqrt(dx * dx + dy * dy);
-
-            let angle = Math.atan2(dy, dx) - player.dir;
-
-            // Normalize angle between -PI and PI
-            while (angle < -Math.PI) angle += 2 * Math.PI;
-            while (angle > Math.PI) angle -= 2 * Math.PI;
-
-            // Sprite is within FOV
-            if (angle > -player.fov / 2 && angle < player.fov / 2) {
-                sprites.push({
-                    type: 'weapon',
-                    x: weapon.x,
-                    y: weapon.y,
-                    distance: distance,
-                    angle: angle
-                });
-            }
-        }
-    });
-
-    // Add health potions to sprites array
-    healthPotions.forEach(potion => {
-        if (!potion.pickedUp) {
-            const dx = potion.x - player.x;
-            const dy = potion.y - player.y;
-
-            const distance = Math.sqrt(dx * dx + dy * dy);
-
-            let angle = Math.atan2(dy, dx) - player.dir;
-
-            // Normalize angle between -PI and PI
-            while (angle < -Math.PI) angle += 2 * Math.PI;
-            while (angle > Math.PI) angle -= 2 * Math.PI;
-
-            // Sprite is within FOV
-            if (angle > -player.fov / 2 && angle < player.fov / 2) {
-                sprites.push({
-                    type: 'potion',
-                    x: potion.x,
-                    y: potion.y,
-                    distance: distance,
-                    angle: angle
-                });
-            }
-        }
-    });
+    // Staircases are floor-anchored markers in the world
+    if (stairsUp) pushSprite({ x: stairsUp.x + 0.5, y: stairsUp.y + 0.5 }, 'stairsUp');
+    if (stairsDown) pushSprite({ x: stairsDown.x + 0.5, y: stairsDown.y + 0.5 }, 'stairsDown');
 
     // Sort sprites by distance (furthest first)
     sprites.sort((a, b) => b.distance - a.distance);
@@ -756,17 +1137,24 @@ function renderSprites(zBuffer) {
         // Full-cell projected size: a 1-unit-tall object spans this many pixels at this depth
         const cellSize = canvas.height / depth;
 
-        // Per-type look: how tall it stands, how high it hovers, how it animates
+        // Per-type look: image, how tall it stands, how high it hovers, how it animates
         let img, config;
         if (sprite.type === 'enemy') {
-            img = enemySprite;
-            config = { heightScale: 1.0, lift: 0.0, bobAmp: 0.03, bobSpeed: 7, swayAmp: 0.02, hover: false };
+            const t = sprite.enemyRef.type;
+            img = t.sprite; // bespoke procedurally-drawn creature
+            config = { heightScale: t.scale, lift: 0.0, bobAmp: 0.03, bobSpeed: 7, swayAmp: 0.02, hover: false };
         } else if (sprite.type === 'weapon') {
             img = weaponSprite;
             config = { heightScale: 0.5, lift: 0.18, bobAmp: 0.05, bobSpeed: 3, swayAmp: 0.0, hover: true };
-        } else { // potion
+        } else if (sprite.type === 'potion') {
             img = potionSprite;
             config = { heightScale: 0.45, lift: 0.18, bobAmp: 0.05, bobSpeed: 3, swayAmp: 0.0, hover: true };
+        } else if (sprite.type === 'stairsUp') {
+            img = stairsUpSprite;
+            config = { heightScale: 0.85, lift: 0.0, bobAmp: 0.02, bobSpeed: 2.5, swayAmp: 0.0, hover: true };
+        } else { // stairsDown
+            img = stairsDownSprite;
+            config = { heightScale: 0.85, lift: 0.0, bobAmp: 0.02, bobSpeed: 2.5, swayAmp: 0.0, hover: true };
         }
 
         // Stable per-sprite phase so nearby objects don't animate in lock-step
@@ -794,7 +1182,7 @@ function renderSprites(zBuffer) {
             return;
         }
 
-        if (img.complete && srcW > 1) {
+        if ((img.complete !== false) && srcW > 1) { // Images expose .complete; canvases don't
             // Distance shading for depth and atmosphere
             const brightness = Math.max(0.5, Math.min(1, 1 - depth / 16));
             const shaded = getShadedSprite(img, brightness);
@@ -822,9 +1210,11 @@ function renderSprites(zBuffer) {
             // Fallback colour block, still floor-anchored and occlusion-tested at its centre
             const spriteMiddleX = Math.floor(spriteScreenX);
             if (spriteMiddleX >= 0 && spriteMiddleX < canvas.width && depth < zBuffer[spriteMiddleX]) {
-                if (sprite.type === 'enemy') ctx.fillStyle = 'red';
+                if (sprite.type === 'enemy') ctx.fillStyle = sprite.enemyRef.type.color;
                 else if (sprite.type === 'weapon') ctx.fillStyle = 'yellow';
-                else ctx.fillStyle = 'purple';
+                else if (sprite.type === 'potion') ctx.fillStyle = 'purple';
+                else if (sprite.type === 'stairsUp') ctx.fillStyle = '#46e6ff';
+                else ctx.fillStyle = '#ff9d3a';
                 ctx.fillRect(drawStartX, drawStartY, drawWidth, drawHeight);
             }
         }
@@ -839,11 +1229,11 @@ function drawEnemyHealth(sprite, drawStartX, drawStartY, spriteWidth) {
     const healthBarWidth = spriteWidth;
     const healthBarHeight = 5; // Thickness of the health bar
 
-    // Find the corresponding enemy object
-    const enemy = enemies.find(e => e.x === sprite.x && e.y === sprite.y && e.alive);
+    // Use the enemy attached to this sprite
+    const enemy = sprite.enemyRef;
 
     if (enemy) {
-        const healthPercent = Math.max(0, Math.min(1, enemy.health / 100));
+        const healthPercent = Math.max(0, Math.min(1, enemy.health / enemy.maxHealth));
 
         // Position the health bar above the sprite
         const healthBarX = drawStartX;
@@ -1102,7 +1492,7 @@ function attack() {
         console.log(`Hit enemy! Damage: ${damage}. Health remaining: ${hitEnemy.health}`);
         if (hitEnemy.health <= 0) {
             hitEnemy.alive = false;
-            score += 1; // Increment score
+            score += hitEnemy.type.score; // Score scales with enemy type
             soundManager.playDamageSound(); // Play damage sound
             console.log('Enemy defeated! Total Score:', score);
         } else {
@@ -1121,11 +1511,19 @@ const miniMapScale = 20; // Scale down the map
 const miniMapX = 20; // X position on the canvas
 const miniMapY = 20; // Y position on the canvas
 
+// Has the player seen the cell containing world-point (wx, wy)?
+function isSeen(wx, wy) {
+    const cx = Math.floor(wx), cy = Math.floor(wy);
+    return seen[cy] && seen[cy][cx];
+}
+
 function drawMiniMap() {
-    // Draw map
+    // Draw the map, but only cells the player has already seen (fog of war)
     for (let y = 0; y < mapHeight; y++) {
         for (let x = 0; x < mapWidth; x++) {
-            if (map[y][x] === 1) {
+            if (!seen[y][x]) {
+                ctx.fillStyle = '#111'; // unknown / unexplored
+            } else if (map[y][x] === 1) {
                 ctx.fillStyle = 'blue';
             } else {
                 ctx.fillStyle = 'lightgrey';
@@ -1134,15 +1532,25 @@ function drawMiniMap() {
         }
     }
 
+    // Staircases (only once their cell has been seen)
+    if (stairsDown && seen[stairsDown.y][stairsDown.x]) {
+        ctx.fillStyle = '#ff9d3a';
+        ctx.fillRect(miniMapX + stairsDown.x * miniMapScale, miniMapY + stairsDown.y * miniMapScale, miniMapScale, miniMapScale);
+    }
+    if (stairsUp && seen[stairsUp.y][stairsUp.x]) {
+        ctx.fillStyle = '#46e6ff';
+        ctx.fillRect(miniMapX + stairsUp.x * miniMapScale, miniMapY + stairsUp.y * miniMapScale, miniMapScale, miniMapScale);
+    }
+
     // Draw player
     ctx.fillStyle = 'green';
     ctx.beginPath();
     ctx.arc(miniMapX + player.x * miniMapScale, miniMapY + player.y * miniMapScale, 5, 0, 2 * Math.PI);
     ctx.fill();
 
-    // Draw enemies
+    // Enemies, weapons and potions only show on cells that have been seen
     enemies.forEach(enemy => {
-        if (enemy.alive) {
+        if (enemy.alive && isSeen(enemy.x, enemy.y)) {
             ctx.fillStyle = 'red';
             ctx.beginPath();
             ctx.arc(miniMapX + enemy.x * miniMapScale, miniMapY + enemy.y * miniMapScale, 5, 0, 2 * Math.PI);
@@ -1150,9 +1558,8 @@ function drawMiniMap() {
         }
     });
 
-    // Draw weapons
     weapons.forEach(weapon => {
-        if (!weapon.pickedUp) {
+        if (!weapon.pickedUp && isSeen(weapon.x, weapon.y)) {
             ctx.fillStyle = 'yellow';
             ctx.beginPath();
             ctx.arc(miniMapX + weapon.x * miniMapScale, miniMapY + weapon.y * miniMapScale, 5, 0, 2 * Math.PI);
@@ -1160,9 +1567,8 @@ function drawMiniMap() {
         }
     });
 
-    // Draw health potions
     healthPotions.forEach(potion => {
-        if (!potion.pickedUp) {
+        if (!potion.pickedUp && isSeen(potion.x, potion.y)) {
             ctx.fillStyle = 'purple';
             ctx.beginPath();
             ctx.arc(miniMapX + potion.x * miniMapScale, miniMapY + potion.y * miniMapScale, 5, 0, 2 * Math.PI);
@@ -1189,18 +1595,6 @@ function showGameOver() {
     window.location.href = 'gameover.html';
 }
 
-function showLevelComplete() {
-    gameState = 'levelcomplete';
-    // Store the current score in Local Storage
-    localStorage.setItem('score', score);
-    // Store weapon level
-    localStorage.setItem('sword',player.sword.toString());
-    localStorage.setItem('swordLevel', player.swordLevel);
-    localStorage.setItem('weapon', player.weapon);
-    // Redirect to levelcomplete.html
-    window.location.href = 'levelcomplete.html';
-}
-
 function showVictory() {
     gameState = 'victory';
     // Store the final score
@@ -1209,6 +1603,25 @@ function showVictory() {
     localStorage.setItem('victory', 'true');
     // Redirect to gameover.html to display victory message
     window.location.href = 'gameover.html';
+}
+
+// ========================
+// 21b. Stair Transitions
+// ========================
+
+// Trigger a floor change when the player stands on a staircase. `lastStairs`
+// prevents instantly re-triggering the staircase you just arrived on.
+function checkStairs() {
+    if (stairsUp) {
+        const d = Math.hypot(player.x - (stairsUp.x + 0.5), player.y - (stairsUp.y + 0.5));
+        if (d > 1.0 && lastStairs === 'up') lastStairs = null;
+        if (d < 0.4 && lastStairs !== 'up') { goToFloor(currentLevel + 1, 'up'); return; }
+    }
+    if (stairsDown) {
+        const d = Math.hypot(player.x - (stairsDown.x + 0.5), player.y - (stairsDown.y + 0.5));
+        if (d > 1.0 && lastStairs === 'down') lastStairs = null;
+        if (d < 0.4 && lastStairs !== 'down') { goToFloor(currentLevel - 1, 'down'); return; }
+    }
 }
 
 // ========================
@@ -1241,15 +1654,12 @@ function gameLoop() {
             }
         }
 
-        // Check if all enemies are defeated
-        const allEnemiesDefeated = enemies.every(enemy => !enemy.alive);
-        if (allEnemiesDefeated) {
-            if (currentLevel < maxLevel) {
-                showLevelComplete();
-            } else {
-                // All levels completed
-                showVictory();
-            }
+        // Progression is by finding stairs now, not by clearing the floor
+        checkStairs();
+
+        // Victory: the dragon on the top floor has been slain
+        if (currentLevel === bossLevel && enemies.length && enemies.every(e => !e.alive)) {
+            showVictory();
         }
 
         // Clear the canvas
@@ -1272,17 +1682,26 @@ function gameLoop() {
         // Draw the mini-map
         drawMiniMap();
 
-        // Display player's health
+        // HUD
+        const aliveCount = enemies.reduce((c, e) => c + (e.alive ? 1 : 0), 0);
         ctx.fillStyle = 'white';
         ctx.font = '20px Arial';
-        
-        ctx.fillText('Health: ' + Math.floor(player.health), 20, 230);
+        ctx.textAlign = 'left';
+        ctx.fillText('Floor: ' + currentLevel + ' / ' + maxLevel, 20, 225);
+        ctx.fillText('Health: ' + Math.floor(player.health), 20, 250);
+        ctx.fillText('Score: ' + score, 20, 275);
+        ctx.fillText('Sword Lv: ' + player.swordLevel, 20, 300);
+        ctx.fillText('Enemies: ' + aliveCount, 20, 325);
 
-        // Display player's score
-        ctx.fillText('Score: ' + score, 20, 260); // Positioned below health
-
-        // Display sword level
-        ctx.fillText('Sword Level: ' + player.swordLevel, 20, 290); // Positioned below score
+        // Transient banner shown just after entering a floor
+        if (floorBanner && performance.now() < floorBanner.until) {
+            ctx.save();
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+            ctx.font = 'bold 32px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText(floorBanner.text, canvas.width / 2, canvas.height * 0.22);
+            ctx.restore();
+        }
     }
 
     // Continue the game loop
@@ -1290,10 +1709,20 @@ function gameLoop() {
 }
 
 // ========================
-// 23. Initialize the First Level
+// 23. Initialize a New Run (start on Floor 1)
 // ========================
 
-loadLevel(currentLevel);
+function startGame() {
+    currentLevel = 1;
+    score = 0;
+    player.health = 100;
+    player.sword = false;
+    player.swordLevel = 1;
+    playerWeapon = null;
+    goToFloor(1, 'start');
+}
+
+startGame();
 
 // ========================
 // 24. Start the Game Loop
