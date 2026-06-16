@@ -146,7 +146,7 @@ Here's an overview of the project's file structure:
 
 ## Credits
 
-This README, game,and graphics were 95% generated using GPT-4, GPT-4-turbo, and GPT-o1-mini.
+This project was originally generated using GPT-4, GPT-4-turbo, and GPT-o1-mini. Subsequent features — the mobile/touch controls, the multi-floor castle redesign (stairs, fog-of-war map, persistent enemies, dragon boss), and the procedurally-drawn "medieval space alien" creatures — were built with Claude (Anthropic).
 
 ## License
 
