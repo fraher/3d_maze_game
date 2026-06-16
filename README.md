@@ -127,22 +127,18 @@ Here's an overview of the project's file structure:
 ├── styles.css
 ├── README.md
 └── textures/
-    ├── wall.png
-    ├── wall_128.png
-    ├── wall_64.png
-    ├── wall_32.png
-    ├── wall_16.png
     ├── weapon.png
     ├── sword.png
     ├── potion.png
+    └── (legacy wall.png / wall_*.png / enemy.png — no longer used)
 ```
 
 - **index.html**: The main game page where gameplay occurs.
 - **gameover.html**: Displayed when the player dies or wins, showing the final score and an option to restart.
 - **levelcomplete.html**: Legacy screen from the original level system; no longer used now that floors transition in place (kept for reference).
-- **game.js**: Contains all the game logic — raycasting/rendering, player and touch controls, enemy behavior, the floor/stairs system, and the procedurally-drawn creatures, dragon boss, and staircases.
+- **game.js**: Contains all the game logic — raycasting/rendering, player and touch controls, enemy behavior, the floor/stairs system, and the procedurally-drawn walls, creatures, dragon boss, and staircases.
 - **styles.css**: Styles for the game, overlays, and on-screen touch controls.
-- **textures/**: Wall and item images. Enemies, the dragon, and staircases are drawn procedurally in code (no sprite files); the old `enemy.png` is retained but unused.
+- **textures/**: The item images (weapon, sword, potion). Walls, enemies, the dragon, and staircases are now drawn procedurally in code; the old wall and enemy PNGs are retained but unused.
 
 ## Credits
 

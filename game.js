@@ -161,33 +161,107 @@ canvas.height = window.innerHeight;
 const ctx = canvas.getContext('2d');
 
 // ========================
-// 3. Texture Loading
+// 3. Procedural Wall Textures (medieval alien stone)
 // ========================
 
-const textures = {
-    256: new Image(),
-    128: new Image(),
-    64: new Image(),
-    32: new Image(),
-    16: new Image()
-};
+// Walls are generated in-code per floor: stone masonry with glowing alien runes
+// and veins, whose hue shifts as you climb the castle. No image files needed.
+let texturesLoaded = true;     // procedural textures are ready synchronously
+let wallTexture = null;        // active floor's wall texture (a canvas)
 
-textures[256].src = 'textures/wall.png';       // Highest resolution
-textures[128].src = 'textures/wall_128.png';
-textures[64].src = 'textures/wall_64.png';
-textures[32].src = 'textures/wall_32.png';
-textures[16].src = 'textures/wall_16.png';     // Lowest resolution
-
-let texturesLoaded = false;
-let texturesToLoad = 5;
-
-for (let size in textures) {
-    textures[size].onload = function() {
-        texturesToLoad--;
-        if (texturesToLoad === 0) {
-            texturesLoaded = true;
-        }
+// Small seeded PRNG so each floor's texture is stable and distinct
+function mulberry32(a) {
+    return function () {
+        a |= 0; a = (a + 0x6D2B79F5) | 0;
+        let t = Math.imul(a ^ (a >>> 15), 1 | a);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
     };
+}
+
+// Glow hue + stone palette for a given floor (rotates as you ascend)
+function wallPaletteForFloor(n) {
+    const hues = [180, 168, 150, 128, 104, 88, 262, 286, 304, 324, 318];
+    const hue = hues[(n - 1) % hues.length];
+    return {
+        hue: hue,
+        glow: 'hsl(' + hue + ',90%,62%)',
+        base: 'hsl(' + hue + ',12%,18%)',
+        baseDark: 'hsl(' + hue + ',16%,11%)',
+        mortar: 'hsl(' + hue + ',18%,7%)'
+    };
+}
+
+// A small glowing alien rune carved into a block
+function drawRune(g, cx, cy, glow, rng) {
+    g.save();
+    g.translate(cx, cy);
+    g.shadowColor = glow; g.shadowBlur = 8;
+    g.strokeStyle = glow; g.globalAlpha = 0.85; g.lineWidth = 2;
+    g.beginPath();
+    const t = Math.floor(rng() * 4);
+    if (t === 0) { g.arc(0, 0, 6, 0, 7); g.moveTo(-8, 0); g.lineTo(8, 0); g.moveTo(0, -8); g.lineTo(0, 8); }
+    else if (t === 1) { g.moveTo(0, -8); g.lineTo(7, 6); g.lineTo(-7, 6); g.closePath(); }
+    else if (t === 2) { g.moveTo(-8, -6); g.lineTo(-2, 2); g.lineTo(-8, 8); g.moveTo(4, -8); g.lineTo(4, 8); }
+    else { g.moveTo(0, -8); g.lineTo(6, 0); g.lineTo(0, 8); g.lineTo(-6, 0); g.closePath(); }
+    g.stroke();
+    g.restore();
+}
+
+// Build a 128x128 tiling stone wall for a floor
+function makeWallTexture(pal, seed) {
+    const S = 128;
+    const c = document.createElement('canvas');
+    c.width = S; c.height = S;
+    const g = c.getContext('2d');
+    const rng = mulberry32(seed);
+
+    // Base stone gradient
+    const grad = g.createLinearGradient(0, 0, 0, S);
+    grad.addColorStop(0, pal.base);
+    grad.addColorStop(1, pal.baseDark);
+    g.fillStyle = grad; g.fillRect(0, 0, S, S);
+
+    // Grit / speckle
+    for (let i = 0; i < 900; i++) {
+        const x = rng() * S, y = rng() * S, a = rng() * 0.10;
+        g.fillStyle = (rng() < 0.5) ? 'rgba(255,255,255,' + a + ')' : 'rgba(0,0,0,' + a + ')';
+        g.fillRect(x, y, 1, 1);
+    }
+
+    // Masonry courses (offset every other row so it reads as blockwork)
+    const bh = 32, bw = 64;
+    for (let row = 0; row * bh < S; row++) {
+        const y = row * bh;
+        const offset = (row % 2) ? bw / 2 : 0;
+        g.strokeStyle = pal.mortar; g.lineWidth = 3;
+        g.beginPath(); g.moveTo(0, y); g.lineTo(S, y); g.stroke();
+        for (let bx = -bw; bx < S + bw; bx += bw) {
+            const x = bx + offset;
+            g.beginPath(); g.moveTo(x, y); g.lineTo(x, y + bh); g.stroke();
+            const v = (rng() - 0.5) * 0.12; // per-block tone variation
+            g.fillStyle = (v > 0) ? 'rgba(255,255,255,' + v + ')' : 'rgba(0,0,0,' + (-v) + ')';
+            g.fillRect(x + 2, y + 2, bw - 3, bh - 3);
+            if (rng() < 0.16) drawRune(g, x + bw / 2, y + bh / 2, pal.glow, rng);
+        }
+        g.strokeStyle = 'rgba(255,255,255,0.05)'; g.lineWidth = 1; // bevel highlight
+        g.beginPath(); g.moveTo(0, y + 1); g.lineTo(S, y + 1); g.stroke();
+    }
+
+    // Glowing alien veins trickling down the stone
+    g.save();
+    g.shadowColor = pal.glow; g.shadowBlur = 6; g.strokeStyle = pal.glow;
+    g.globalAlpha = 0.5; g.lineWidth = 1.5;
+    for (let k = 0; k < 2; k++) {
+        let x = rng() * S, y = 0;
+        g.beginPath(); g.moveTo(x, y);
+        while (y < S) { y += 8 + rng() * 10; x += (rng() - 0.5) * 20; g.lineTo(x, y); }
+        g.stroke();
+    }
+    g.restore();
+
+    c._cacheKey = 'wall_' + seed;
+    return c;
 }
 
 // ========================
@@ -843,11 +917,13 @@ function generateFloor(n) {
     const potionCount = (n === bossLevel) ? 3 : 1 + Math.floor(n / 2);
     const potionList = buildItems(potionCount, grid, avoid, (x, y) => new HealthPotion(x, y));
     const seenGrid = Array.from({ length: h }, () => new Array(w).fill(false));
+    const wallTex = makeWallTexture(wallPaletteForFloor(n), (n * 2654435761) >>> 0);
 
     return {
         number: n, map: grid, width: w, height: h,
         enemies: enemyList, weapons: weaponList, healthPotions: potionList,
-        seen: seenGrid, stairsUp: sUp, stairsDown: sDown, spawn: base
+        seen: seenGrid, stairsUp: sUp, stairsDown: sDown, spawn: base,
+        wallTexture: wallTex
     };
 }
 
@@ -883,6 +959,7 @@ function goToFloor(n, arrive) {
     seen = floor.seen;
     stairsUp = floor.stairsUp;
     stairsDown = floor.stairsDown;
+    wallTexture = floor.wallTexture;
 
     // Where does the player appear?
     let cell;
@@ -1026,31 +1103,14 @@ function castRays() {
         if (side === 0 && rayDirX > 0) textureX = 1.0 - textureX;
         if (side === 1 && rayDirY < 0) textureX = 1.0 - textureX;
 
-        // Choose texture level based on corrected distance (mipmapping)
-        let textureSize;
-        if (correctedDistance < 2) {
-            textureSize = 256;
-        } else if (correctedDistance < 4) {
-            textureSize = 128;
-        } else if (correctedDistance < 8) {
-            textureSize = 64;
-        } else if (correctedDistance < 12) {
-            textureSize = 32;
-        } else {
-            textureSize = 16;
-        }
-
-        const texture = textures[textureSize];
-
-        // Draw the textured wall slice
-        if (texturesLoaded) {
+        // Draw the procedural alien-stone wall slice for this floor
+        if (wallTexture) {
             ctx.drawImage(
-                texture,
-                Math.floor(textureX * texture.width), 0, 1, texture.height,
+                wallTexture,
+                Math.floor(textureX * wallTexture.width), 0, 1, wallTexture.height,
                 i, drawStart, 1, drawEnd - drawStart
             );
         } else {
-            // Texture not loaded yet; draw a plain wall
             ctx.fillStyle = 'grey';
             ctx.fillRect(i, drawStart, 1, drawEnd - drawStart);
         }
