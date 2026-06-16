@@ -751,15 +751,20 @@ class MusicManager {
         this.playing = true;
         this.step = 0;
         this.nextStepTime = this.ctx.currentTime + 0.1;
-        this._rampMaster(this.theme === 'boss' ? 0.22 : 0.16, 2.0);
+        if (this.ctx.state === 'suspended' && this.ctx.resume) this.ctx.resume();
+        this._rampMaster(this._targetGain(), 0.8);
         const self = this;
         this.timer = setInterval(function () { self._scheduler(); }, 25);
+    }
+
+    _targetGain() {
+        return this.theme === 'boss' ? 0.42 : 0.34;
     }
 
     setTheme(theme) {
         if (theme === this.theme) return;
         this.theme = theme;
-        if (this.playing) this._rampMaster(theme === 'boss' ? 0.22 : 0.16, 1.5);
+        if (this.playing) this._rampMaster(this._targetGain(), 1.2);
     }
 
     stop() {
@@ -780,43 +785,50 @@ class MusicManager {
         }
     }
 
-    // Eerie ambient: a slow sub-drone, a soft minor pad, and sparse bell notes
+    // Eerie ambient: a low bass, a soft minor pad, a steady arpeggio and sparse bells.
+    // Pitched into the audible range so it carries on laptop / phone speakers.
     _explore(step, t, stepDur) {
         const bar = 16;
         const pos = step % bar;
-        const barRoots = [73.42, 65.41, 98.00, 87.31]; // D2, C2, G2, F2
+        const barRoots = [146.83, 130.81, 196.00, 174.61]; // D3, C3, G3, F3
         const root = barRoots[Math.floor(step / bar) % barRoots.length];
         if (pos === 0) {
             const barDur = stepDur * bar;
-            this._note(root / 2, t, barDur * 0.98, 'sine', 0.5, 0.8, 0.6);       // sub drone
-            this._note(root, t, barDur * 0.95, 'triangle', 0.18, 1.0, 0.8);      // pad root
-            this._note(root * Math.pow(2, 3 / 12), t, barDur * 0.95, 'triangle', 0.13, 1.2, 0.8); // minor 3rd
-            this._note(root * Math.pow(2, 7 / 12), t, barDur * 0.95, 'triangle', 0.13, 1.2, 0.8); // 5th
+            this._note(root / 2, t, barDur, 'sine', 0.34, 0.6, 0.8);                       // bass
+            this._note(root, t, barDur * 0.96, 'triangle', 0.20, 0.8, 0.8);                // pad root
+            this._note(root * Math.pow(2, 3 / 12), t, barDur * 0.96, 'triangle', 0.15, 1.0, 0.8); // minor 3rd
+            this._note(root * Math.pow(2, 7 / 12), t, barDur * 0.96, 'triangle', 0.15, 1.0, 0.8); // 5th
         }
-        const scale = [0, 2, 3, 5, 7, 8, 10]; // natural minor
-        if (pos % 2 === 0 && Math.random() < 0.22) {
+        // Steady arpeggio so there's always gentle motion
+        const arp = [0, 3, 7, 10, 12, 7];
+        if (pos % 2 === 0) {
+            const deg = arp[(pos / 2) % arp.length];
+            this._note(root * Math.pow(2, deg / 12), t, stepDur * 1.3, 'sine', 0.14, 0.02, 0.35);
+        }
+        // Sparse high bell shimmer
+        if (Math.random() < 0.18) {
+            const scale = [0, 2, 3, 5, 7, 8, 10];
             const deg = scale[Math.floor(Math.random() * scale.length)];
-            this._note(root * Math.pow(2, (deg + 12) / 12), t, stepDur * 1.5, 'sine', 0.16, 0.02, 0.5);
+            this._note(root * Math.pow(2, (deg + 12) / 12), t, stepDur * 2, 'sine', 0.16, 0.02, 0.6);
         }
-        if (pos % 8 === 0) this._note(root, t, stepDur * 0.5, 'sine', 0.10, 0.01, 0.2);
     }
 
-    // Boss: a driving low ostinato, kick/hat pulse, and dissonant phrygian stabs
+    // Boss: a driving ostinato, kick/hat pulse, and dissonant phrygian stabs (audible range)
     _boss(step, t, stepDur) {
         const bar = 16;
         const pos = step % bar;
-        const root = 55.0; // A1
+        const root = 110.0; // A2
         const pattern = [0, 0, 7, 0, 0, 3, 0, 5];
         const off = pattern[step % pattern.length];
-        this._note(root * Math.pow(2, off / 12), t, stepDur * 0.9, 'sawtooth', 0.22, 0.005, 0.05);
+        this._note(root * Math.pow(2, off / 12), t, stepDur * 0.9, 'sawtooth', 0.26, 0.005, 0.05); // bass
         if (pos % 4 === 0) this._kick(t);
-        if (pos % 2 === 1) this._hat(t, 0.14);
+        if (pos % 2 === 1) this._hat(t, 0.16);
         const scale = [0, 1, 3, 5, 7, 8, 10]; // phrygian (menacing)
-        if (pos % 8 === 0 || Math.random() < 0.18) {
+        if (pos % 4 === 0 || Math.random() < 0.25) {
             const deg = scale[Math.floor(Math.random() * scale.length)];
-            this._note(root * Math.pow(2, (deg + 24) / 12), t, stepDur * 2, 'square', 0.10, 0.005, 0.2);
+            this._note(root * Math.pow(2, (deg + 12) / 12), t, stepDur * 2, 'square', 0.14, 0.005, 0.2); // lead
         }
-        if (pos === 0) this._note(root * Math.pow(2, 37 / 12), t, stepDur * bar * 0.5, 'sawtooth', 0.05, 1.0, 1.0);
+        if (pos === 0) this._note(root * 2, t, stepDur * bar * 0.5, 'sawtooth', 0.06, 0.5, 1.0); // high drone
     }
 }
 
