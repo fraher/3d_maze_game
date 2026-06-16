@@ -672,6 +672,157 @@ class SoundManager {
 const soundManager = new SoundManager();
 
 // ========================
+// 5b. Generative Music
+// ========================
+// Procedural background score built live with the Web Audio API (no audio files).
+// Two themes: an eerie ambient drift for exploration, and a driving, menacing
+// pulse for the dragon fight. A look-ahead scheduler queues notes just in time.
+class MusicManager {
+    constructor(ctx) {
+        this.ctx = ctx;
+        this.master = ctx.createGain();
+        this.master.gain.value = 0.0001;
+        this.master.connect(ctx.destination);
+        this.playing = false;
+        this.theme = 'exploration';
+        this.step = 0;
+        this.nextStepTime = 0;
+        this.timer = null;
+        this.lookahead = 0.12;     // seconds of audio to schedule ahead
+        this.noise = this._makeNoise();
+    }
+
+    _makeNoise() {
+        const len = Math.floor(this.ctx.sampleRate * 0.4);
+        const buf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+        return buf;
+    }
+
+    // A single enveloped oscillator note
+    _note(freq, t, dur, type, peak, attack, release) {
+        const o = this.ctx.createOscillator();
+        const g = this.ctx.createGain();
+        o.type = type || 'sine';
+        o.frequency.setValueAtTime(freq, t);
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(peak, t + (attack || 0.01));
+        g.gain.exponentialRampToValueAtTime(0.0001, t + dur + (release || 0.1));
+        o.connect(g); g.connect(this.master);
+        o.start(t); o.stop(t + dur + (release || 0.1) + 0.02);
+    }
+
+    _kick(t) {
+        const o = this.ctx.createOscillator();
+        const g = this.ctx.createGain();
+        o.type = 'sine';
+        o.frequency.setValueAtTime(150, t);
+        o.frequency.exponentialRampToValueAtTime(45, t + 0.12);
+        g.gain.setValueAtTime(0.9, t);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+        o.connect(g); g.connect(this.master);
+        o.start(t); o.stop(t + 0.2);
+    }
+
+    _hat(t, peak) {
+        const s = this.ctx.createBufferSource();
+        s.buffer = this.noise;
+        const hp = this.ctx.createBiquadFilter();
+        hp.type = 'highpass'; hp.frequency.value = 6000;
+        const g = this.ctx.createGain();
+        g.gain.setValueAtTime(peak || 0.18, t);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
+        s.connect(hp); hp.connect(g); g.connect(this.master);
+        s.start(t); s.stop(t + 0.07);
+    }
+
+    _rampMaster(target, secs) {
+        const now = this.ctx.currentTime;
+        this.master.gain.cancelScheduledValues(now);
+        this.master.gain.setValueAtTime(Math.max(0.0001, this.master.gain.value), now);
+        this.master.gain.linearRampToValueAtTime(target, now + secs);
+    }
+
+    start(theme) {
+        if (!this.ctx) return;
+        if (theme) this.theme = theme;
+        if (this.playing) { this.setTheme(this.theme); return; }
+        this.playing = true;
+        this.step = 0;
+        this.nextStepTime = this.ctx.currentTime + 0.1;
+        this._rampMaster(this.theme === 'boss' ? 0.22 : 0.16, 2.0);
+        const self = this;
+        this.timer = setInterval(function () { self._scheduler(); }, 25);
+    }
+
+    setTheme(theme) {
+        if (theme === this.theme) return;
+        this.theme = theme;
+        if (this.playing) this._rampMaster(theme === 'boss' ? 0.22 : 0.16, 1.5);
+    }
+
+    stop() {
+        if (!this.playing) return;
+        this.playing = false;
+        if (this.timer) { clearInterval(this.timer); this.timer = null; }
+        this._rampMaster(0.0001, 1.2);
+    }
+
+    _scheduler() {
+        if (!this.playing) return;
+        const stepDur = (this.theme === 'boss') ? 0.16 : 0.30;
+        while (this.nextStepTime < this.ctx.currentTime + this.lookahead) {
+            if (this.theme === 'boss') this._boss(this.step, this.nextStepTime, stepDur);
+            else this._explore(this.step, this.nextStepTime, stepDur);
+            this.step++;
+            this.nextStepTime += stepDur;
+        }
+    }
+
+    // Eerie ambient: a slow sub-drone, a soft minor pad, and sparse bell notes
+    _explore(step, t, stepDur) {
+        const bar = 16;
+        const pos = step % bar;
+        const barRoots = [73.42, 65.41, 98.00, 87.31]; // D2, C2, G2, F2
+        const root = barRoots[Math.floor(step / bar) % barRoots.length];
+        if (pos === 0) {
+            const barDur = stepDur * bar;
+            this._note(root / 2, t, barDur * 0.98, 'sine', 0.5, 0.8, 0.6);       // sub drone
+            this._note(root, t, barDur * 0.95, 'triangle', 0.18, 1.0, 0.8);      // pad root
+            this._note(root * Math.pow(2, 3 / 12), t, barDur * 0.95, 'triangle', 0.13, 1.2, 0.8); // minor 3rd
+            this._note(root * Math.pow(2, 7 / 12), t, barDur * 0.95, 'triangle', 0.13, 1.2, 0.8); // 5th
+        }
+        const scale = [0, 2, 3, 5, 7, 8, 10]; // natural minor
+        if (pos % 2 === 0 && Math.random() < 0.22) {
+            const deg = scale[Math.floor(Math.random() * scale.length)];
+            this._note(root * Math.pow(2, (deg + 12) / 12), t, stepDur * 1.5, 'sine', 0.16, 0.02, 0.5);
+        }
+        if (pos % 8 === 0) this._note(root, t, stepDur * 0.5, 'sine', 0.10, 0.01, 0.2);
+    }
+
+    // Boss: a driving low ostinato, kick/hat pulse, and dissonant phrygian stabs
+    _boss(step, t, stepDur) {
+        const bar = 16;
+        const pos = step % bar;
+        const root = 55.0; // A1
+        const pattern = [0, 0, 7, 0, 0, 3, 0, 5];
+        const off = pattern[step % pattern.length];
+        this._note(root * Math.pow(2, off / 12), t, stepDur * 0.9, 'sawtooth', 0.22, 0.005, 0.05);
+        if (pos % 4 === 0) this._kick(t);
+        if (pos % 2 === 1) this._hat(t, 0.14);
+        const scale = [0, 1, 3, 5, 7, 8, 10]; // phrygian (menacing)
+        if (pos % 8 === 0 || Math.random() < 0.18) {
+            const deg = scale[Math.floor(Math.random() * scale.length)];
+            this._note(root * Math.pow(2, (deg + 24) / 12), t, stepDur * 2, 'square', 0.10, 0.005, 0.2);
+        }
+        if (pos === 0) this._note(root * Math.pow(2, 37 / 12), t, stepDur * bar * 0.5, 'sawtooth', 0.05, 1.0, 1.0);
+    }
+}
+
+const musicManager = new MusicManager(soundManager.audioCtx);
+
+// ========================
 // 6. Define the Player Object
 // ========================
 
@@ -984,6 +1135,9 @@ function goToFloor(n, arrive) {
     };
 
     soundManager.playBeep(arrive === 'down' ? 320 : 520, 0.15, 0.4);
+
+    // Swap the score to the boss theme on the dragon's floor (and back otherwise)
+    musicManager.setTheme(n === bossLevel ? 'boss' : 'exploration');
 }
 
 // ========================
@@ -1660,6 +1814,7 @@ function drawMiniMap() {
 function showGameOver() {
     if (gameState !== 'running') return; // only trigger once
     gameState = 'gameover';
+    musicManager.stop();
     localStorage.setItem('finalScore', score);
     // Reveal the in-game death screen with the floor reached and final score
     const floorEl = document.getElementById('deathFloor');
@@ -1673,6 +1828,7 @@ function showGameOver() {
 function showVictory() {
     if (gameState !== 'running') return; // only trigger once
     gameState = 'victory';
+    musicManager.stop();
     localStorage.setItem('finalScore', score);
     // Reveal the in-game epilogue with the final score
     const scoreEl = document.getElementById('epilogueScore');
@@ -1828,8 +1984,9 @@ function setupStory() {
     if (beginBtn) {
         beginBtn.addEventListener('click', function () {
             if (storyOverlay) storyOverlay.classList.add('hidden');
-            // The click is a user gesture: (re)start audio and begin play
+            // The click is a user gesture: (re)start audio, music, and begin play
             try { soundManager.audioCtx.resume(); } catch (e) { /* ignore */ }
+            musicManager.start(currentLevel === bossLevel ? 'boss' : 'exploration');
             floorBanner = { text: 'Floor 1', until: performance.now() + 1800 };
             gameState = 'running';
         });
