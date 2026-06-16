@@ -210,48 +210,287 @@ potionSprite.src = 'textures/potion.png'; // Add a potion sprite image
 // 4b. Enemy Types
 // ========================
 // Each floor N introduces N distinct enemy types (floor 1 has 1, floor 2 has 2, ...).
-// They share the base enemy sprite but are colour-tinted and have escalating stats.
+// Every type is a hand-drawn "medieval space alien": `form` picks the silhouette,
+// `color` is the body, `glow` is the plasma/eye colour. Stats escalate by floor.
 const enemyTypes = [
-    { name: 'Slime',   color: '#4caf50', health: 60,  speed: 0.015, damage: 0.05, score: 1,  scale: 0.85 },
-    { name: 'Bat',     color: '#e53935', health: 80,  speed: 0.022, damage: 0.06, score: 2,  scale: 0.80 },
-    { name: 'Spider',  color: '#fb8c00', health: 110, speed: 0.018, damage: 0.07, score: 3,  scale: 0.90 },
-    { name: 'Ghoul',   color: '#00bcd4', health: 140, speed: 0.019, damage: 0.08, score: 4,  scale: 0.95 },
-    { name: 'Wraith',  color: '#d500f9', health: 170, speed: 0.020, damage: 0.09, score: 5,  scale: 1.00 },
-    { name: 'Golem',   color: '#8d6e63', health: 230, speed: 0.013, damage: 0.11, score: 6,  scale: 1.15 },
-    { name: 'Reaper',  color: '#ffeb3b', health: 200, speed: 0.024, damage: 0.10, score: 7,  scale: 1.00 },
-    { name: 'Specter', color: '#2196f3', health: 240, speed: 0.021, damage: 0.11, score: 8,  scale: 1.05 },
-    { name: 'Demon',   color: '#c62828', health: 300, speed: 0.020, damage: 0.13, score: 9,  scale: 1.10 },
-    { name: 'Warlock', color: '#7e57c2', health: 360, speed: 0.018, damage: 0.14, score: 10, scale: 1.10 }
+    { name: 'Ooze Trooper',  form: 'ooze',    color: '#5db84a', glow: '#bcff8a', health: 60,  speed: 0.015, damage: 0.05, score: 1,  scale: 0.85 },
+    { name: 'Void Bat',      form: 'bat',     color: '#c2384a', glow: '#ff9aa0', health: 80,  speed: 0.022, damage: 0.06, score: 2,  scale: 0.80 },
+    { name: 'Spire Crawler', form: 'spider',  color: '#e08a2a', glow: '#ffe28a', health: 110, speed: 0.018, damage: 0.07, score: 3,  scale: 0.90 },
+    { name: 'Star Ghoul',    form: 'ghoul',   color: '#2fa3b8', glow: '#aef0ff', health: 140, speed: 0.019, damage: 0.08, score: 4,  scale: 0.95 },
+    { name: 'Plasma Wraith', form: 'wraith',  color: '#b145d6', glow: '#f0b6ff', health: 170, speed: 0.020, damage: 0.09, score: 5,  scale: 1.00 },
+    { name: 'Iron Golem',    form: 'golem',   color: '#7d6a55', glow: '#ffd27a', health: 230, speed: 0.013, damage: 0.11, score: 6,  scale: 1.15 },
+    { name: 'Comet Reaper',  form: 'reaper',  color: '#cfc24a', glow: '#fdffb0', health: 200, speed: 0.024, damage: 0.10, score: 7,  scale: 1.00 },
+    { name: 'Nebula Specter',form: 'specter', color: '#3f6fd0', glow: '#b6d4ff', health: 240, speed: 0.021, damage: 0.11, score: 8,  scale: 1.05 },
+    { name: 'Warp Demon',    form: 'demon',   color: '#b22a2a', glow: '#ff7a5a', health: 300, speed: 0.020, damage: 0.13, score: 9,  scale: 1.10 },
+    { name: 'Rune Warlock',  form: 'warlock', color: '#6a4fb0', glow: '#c9b6ff', health: 360, speed: 0.018, damage: 0.14, score: 10, scale: 1.10 }
 ];
 
 // The floor 11 boss: a single massive alien dragon
-const bossType = { name: 'Alien Dragon', color: '#6a1b9a', health: 2600, speed: 0.011, damage: 0.22, score: 100, scale: 3.2 };
+const bossType = { name: 'Alien Dragon', form: 'dragon', color: '#6a1b9a', glow: '#7affea', health: 2600, speed: 0.011, damage: 0.22, score: 100, scale: 3.2 };
 
 // ========================
-// 4c. Procedural Sprite Helpers (tinting + stairs)
+// 4c. Procedural Sprite Helpers (creatures + stairs)
 // ========================
 
-// Colour-tinted variants of the enemy sprite, cached per colour.
-const tintCache = {};
-function getTintedSprite(img, color) {
-    if (!img.complete || !(img.naturalWidth || img.width)) return null; // source not ready yet
-    const key = 'tint_' + color;
-    if (tintCache[key]) return tintCache[key];
+// Shared "medieval" metal for helmets, plates, blades and horns
+const ARMOR = '#c2c9d4';
+const ARMOR_DARK = '#8a93a1';
+const ESW = 100, ESH = 140; // default creature canvas size
 
-    const off = document.createElement('canvas');
-    off.width = img.naturalWidth || img.width;
-    off.height = img.naturalHeight || img.height;
-    const o = off.getContext('2d');
-    o.drawImage(img, 0, 0);
-    o.globalCompositeOperation = 'source-atop'; // tint only the opaque pixels
-    o.globalAlpha = 0.5;
-    o.fillStyle = color;
-    o.fillRect(0, 0, off.width, off.height);
-
-    off._cacheKey = key; // used by getShadedSprite's cache
-    tintCache[key] = off;
-    return off;
+// Lighten (f>0) or darken (f<0) a #rrggbb colour by fraction f.
+function shade(hex, f) {
+    const n = parseInt(hex.slice(1), 16);
+    let r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+    if (f < 0) { const k = 1 + f; r *= k; g *= k; b *= k; }
+    else { r += (255 - r) * f; g += (255 - g) * f; b += (255 - b) * f; }
+    return 'rgb(' + (r | 0) + ',' + (g | 0) + ',' + (b | 0) + ')';
 }
+
+// A glowing alien eye (bright halo with a dark pupil)
+function drawGlowEye(g, x, y, r, glow) {
+    g.save();
+    g.shadowColor = glow;
+    g.shadowBlur = 10;
+    g.fillStyle = glow;
+    g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+    g.shadowBlur = 0;
+    g.fillStyle = '#0b0b16';
+    g.beginPath(); g.arc(x, y, r * 0.4, 0, Math.PI * 2); g.fill();
+    g.restore();
+}
+
+// Each form draws a distinct creature onto a transparent canvas, feet near the
+// bottom so it floor-anchors. `c` = { main, dark, light, glow }.
+const enemyForms = {
+    ooze(g, c) {
+        g.fillStyle = c.main; // gloopy body
+        g.beginPath();
+        g.moveTo(18, 132);
+        g.bezierCurveTo(8, 95, 14, 64, 50, 62);
+        g.bezierCurveTo(86, 64, 92, 95, 82, 132);
+        g.quadraticCurveTo(50, 122, 18, 132);
+        g.closePath(); g.fill();
+        g.fillStyle = c.light;
+        g.beginPath(); g.ellipse(40, 88, 9, 13, -0.3, 0, 7); g.fill();
+        g.fillStyle = ARMOR; // knight's helm
+        g.beginPath(); g.arc(50, 62, 28, Math.PI, 2 * Math.PI); g.closePath(); g.fill();
+        g.fillStyle = ARMOR_DARK; g.fillRect(22, 58, 56, 6);
+        g.save(); g.shadowColor = c.glow; g.shadowBlur = 10; g.fillStyle = c.glow;
+        g.fillRect(32, 49, 36, 5); g.restore(); // visor slit
+        drawGlowEye(g, 41, 96, 6, c.glow);
+        drawGlowEye(g, 61, 96, 6, c.glow);
+        g.fillStyle = c.main;
+        g.beginPath(); g.arc(30, 132, 5, 0, 7); g.arc(70, 130, 4, 0, 7); g.fill();
+    },
+    bat(g, c) {
+        g.fillStyle = c.dark; // membranous wings
+        g.beginPath();
+        g.moveTo(50, 70); g.lineTo(6, 48); g.lineTo(16, 70); g.lineTo(4, 78);
+        g.lineTo(20, 84); g.lineTo(10, 98); g.lineTo(50, 88); g.closePath(); g.fill();
+        g.beginPath();
+        g.moveTo(50, 70); g.lineTo(94, 48); g.lineTo(84, 70); g.lineTo(96, 78);
+        g.lineTo(80, 84); g.lineTo(90, 98); g.lineTo(50, 88); g.closePath(); g.fill();
+        g.fillStyle = c.main; // body
+        g.beginPath(); g.ellipse(50, 88, 15, 26, 0, 0, 7); g.fill();
+        g.beginPath(); // ears
+        g.moveTo(40, 66); g.lineTo(44, 50); g.lineTo(48, 66); g.closePath();
+        g.moveTo(52, 66); g.lineTo(56, 50); g.lineTo(60, 66); g.closePath(); g.fill();
+        drawGlowEye(g, 44, 84, 5, c.glow);
+        drawGlowEye(g, 56, 84, 5, c.glow);
+        g.fillStyle = '#fff'; // fangs
+        g.beginPath();
+        g.moveTo(46, 100); g.lineTo(48, 108); g.lineTo(50, 100); g.closePath();
+        g.moveTo(52, 100); g.lineTo(54, 108); g.lineTo(56, 100); g.closePath(); g.fill();
+    },
+    spider(g, c) {
+        g.strokeStyle = c.dark; g.lineWidth = 5; g.lineCap = 'round';
+        for (let i = 0; i < 4; i++) {
+            const yy = 80 + i * 9;
+            g.beginPath(); g.moveTo(46, yy); g.lineTo(18, yy - 8); g.lineTo(8, yy + 8); g.stroke();
+            g.beginPath(); g.moveTo(54, yy); g.lineTo(82, yy - 8); g.lineTo(92, yy + 8); g.stroke();
+        }
+        g.fillStyle = c.main; // abdomen
+        g.beginPath(); g.ellipse(50, 112, 24, 22, 0, 0, 7); g.fill();
+        g.fillStyle = c.light; // head
+        g.beginPath(); g.ellipse(50, 82, 18, 16, 0, 0, 7); g.fill();
+        drawGlowEye(g, 44, 78, 4, c.glow); drawGlowEye(g, 56, 78, 4, c.glow);
+        drawGlowEye(g, 40, 86, 3, c.glow); drawGlowEye(g, 60, 86, 3, c.glow);
+        drawGlowEye(g, 50, 84, 3, c.glow);
+        g.fillStyle = ARMOR; g.fillRect(44, 92, 12, 6); // mandible plate
+    },
+    ghoul(g, c) {
+        g.fillStyle = c.main; // tattered cloak
+        g.beginPath();
+        g.moveTo(50, 40); g.lineTo(82, 96); g.lineTo(74, 110); g.lineTo(66, 98);
+        g.lineTo(58, 116); g.lineTo(50, 100); g.lineTo(42, 116); g.lineTo(34, 98);
+        g.lineTo(26, 110); g.lineTo(18, 96); g.closePath(); g.fill();
+        g.fillStyle = '#0a0c14'; // hood shadow
+        g.beginPath(); g.ellipse(50, 64, 16, 20, 0, 0, 7); g.fill();
+        drawGlowEye(g, 44, 62, 5, c.glow);
+        drawGlowEye(g, 56, 62, 5, c.glow);
+        g.fillStyle = ARMOR; // pauldrons
+        g.beginPath(); g.ellipse(30, 80, 9, 6, 0.4, 0, 7); g.fill();
+        g.beginPath(); g.ellipse(70, 80, 9, 6, -0.4, 0, 7); g.fill();
+    },
+    wraith(g, c) {
+        g.save(); g.globalAlpha = 0.85; g.fillStyle = c.main;
+        g.beginPath();
+        g.moveTo(50, 44);
+        g.bezierCurveTo(78, 60, 70, 100, 60, 124);
+        g.quadraticCurveTo(50, 112, 40, 124);
+        g.bezierCurveTo(30, 100, 22, 60, 50, 44);
+        g.closePath(); g.fill(); g.restore();
+        g.save(); g.shadowColor = c.glow; g.shadowBlur = 16; g.fillStyle = c.glow;
+        g.beginPath(); g.arc(50, 88, 7, 0, 7); g.fill(); g.restore(); // core
+        g.strokeStyle = c.light; g.lineWidth = 5; g.lineCap = 'round';
+        g.beginPath(); g.moveTo(40, 72); g.lineTo(22, 84); g.stroke();
+        g.beginPath(); g.moveTo(60, 72); g.lineTo(78, 84); g.stroke();
+        drawGlowEye(g, 44, 60, 5, c.glow);
+        drawGlowEye(g, 56, 60, 5, c.glow);
+    },
+    golem(g, c) {
+        g.fillStyle = c.dark; g.fillRect(32, 110, 14, 24); g.fillRect(54, 110, 14, 24); // legs
+        g.fillStyle = c.main; g.fillRect(26, 64, 48, 52); // torso
+        g.fillStyle = ARMOR; g.fillRect(26, 64, 48, 10); // chest plate
+        g.fillStyle = ARMOR_DARK;
+        for (let i = 0; i < 3; i++) { g.beginPath(); g.arc(36 + i * 14, 69, 2, 0, 7); g.fill(); }
+        g.fillStyle = c.main; g.fillRect(12, 70, 14, 40); g.fillRect(74, 70, 14, 40); // arms
+        g.fillStyle = c.dark;
+        g.beginPath(); g.arc(19, 112, 9, 0, 7); g.arc(81, 112, 9, 0, 7); g.fill(); // fists
+        g.fillStyle = ARMOR; g.fillRect(38, 44, 24, 22); // helm
+        g.fillStyle = ARMOR_DARK; g.fillRect(38, 44, 24, 4);
+        g.save(); g.shadowColor = c.glow; g.shadowBlur = 10; g.fillStyle = c.glow;
+        g.fillRect(42, 54, 16, 4); g.restore(); // eye visor
+    },
+    reaper(g, c) {
+        g.strokeStyle = '#6b5436'; g.lineWidth = 5; g.lineCap = 'round'; // scythe pole
+        g.beginPath(); g.moveTo(74, 30); g.lineTo(66, 128); g.stroke();
+        g.fillStyle = ARMOR; // blade
+        g.beginPath(); g.moveTo(74, 30); g.quadraticCurveTo(38, 26, 34, 50);
+        g.quadraticCurveTo(58, 40, 74, 44); g.closePath(); g.fill();
+        g.fillStyle = c.main; // cloak
+        g.beginPath();
+        g.moveTo(50, 44); g.lineTo(78, 120); g.lineTo(60, 112); g.lineTo(50, 124);
+        g.lineTo(40, 112); g.lineTo(22, 120); g.closePath(); g.fill();
+        g.fillStyle = c.dark;
+        g.beginPath(); g.moveTo(34, 58); g.quadraticCurveTo(50, 34, 66, 58);
+        g.quadraticCurveTo(50, 66, 34, 58); g.fill();
+        g.fillStyle = '#0a0c14';
+        g.beginPath(); g.ellipse(50, 58, 12, 14, 0, 0, 7); g.fill();
+        drawGlowEye(g, 45, 58, 4, c.glow);
+        drawGlowEye(g, 55, 58, 4, c.glow);
+    },
+    specter(g, c) {
+        g.save(); g.globalAlpha = 0.8; g.fillStyle = c.main;
+        g.beginPath();
+        g.moveTo(50, 46);
+        g.bezierCurveTo(80, 56, 74, 104, 66, 122);
+        g.lineTo(58, 112); g.lineTo(50, 122); g.lineTo(42, 112); g.lineTo(34, 122);
+        g.bezierCurveTo(26, 104, 20, 56, 50, 46);
+        g.closePath(); g.fill(); g.restore();
+        g.fillStyle = c.glow; // star speckles
+        const stars = [[40, 70], [60, 64], [52, 90], [36, 100], [64, 96], [48, 78]];
+        for (const s of stars) { g.beginPath(); g.arc(s[0], s[1], 1.6, 0, 7); g.fill(); }
+        drawGlowEye(g, 44, 64, 5, c.glow);
+        drawGlowEye(g, 56, 64, 5, c.glow);
+    },
+    demon(g, c) {
+        g.fillStyle = c.dark; // bat wings
+        g.beginPath(); g.moveTo(34, 72); g.lineTo(10, 60); g.lineTo(18, 86); g.lineTo(34, 90); g.closePath(); g.fill();
+        g.beginPath(); g.moveTo(66, 72); g.lineTo(90, 60); g.lineTo(82, 86); g.lineTo(66, 90); g.closePath(); g.fill();
+        g.fillStyle = c.dark; g.fillRect(38, 112, 10, 22); g.fillRect(52, 112, 10, 22); // legs
+        g.fillStyle = c.main;
+        g.beginPath(); g.moveTo(34, 72); g.lineTo(66, 72); g.lineTo(62, 116); g.lineTo(38, 116); g.closePath(); g.fill();
+        g.fillStyle = ARMOR; // chest plate
+        g.beginPath(); g.moveTo(42, 78); g.lineTo(58, 78); g.lineTo(50, 96); g.closePath(); g.fill();
+        g.fillStyle = c.main; g.beginPath(); g.arc(50, 60, 14, 0, 7); g.fill(); // head
+        g.fillStyle = ARMOR; // horns
+        g.beginPath(); g.moveTo(40, 52); g.lineTo(30, 38); g.lineTo(44, 48); g.closePath();
+        g.moveTo(60, 52); g.lineTo(70, 38); g.lineTo(56, 48); g.closePath(); g.fill();
+        drawGlowEye(g, 44, 60, 4, c.glow);
+        drawGlowEye(g, 56, 60, 4, c.glow);
+        g.strokeStyle = c.glow; g.lineWidth = 2;
+        g.beginPath(); g.moveTo(44, 68); g.lineTo(56, 68); g.stroke();
+    },
+    warlock(g, c) {
+        g.strokeStyle = '#6b5436'; g.lineWidth = 4; g.lineCap = 'round'; // staff
+        g.beginPath(); g.moveTo(30, 40); g.lineTo(34, 128); g.stroke();
+        g.save(); g.shadowColor = c.glow; g.shadowBlur = 16; g.fillStyle = c.glow;
+        g.beginPath(); g.arc(30, 36, 8, 0, 7); g.fill(); g.restore(); // orb
+        g.fillStyle = c.main; // robe
+        g.beginPath(); g.moveTo(50, 46); g.lineTo(74, 124); g.lineTo(50, 118); g.lineTo(26, 124); g.closePath(); g.fill();
+        g.strokeStyle = c.glow; g.lineWidth = 2;
+        g.beginPath(); g.moveTo(50, 46); g.lineTo(74, 124); g.moveTo(50, 46); g.lineTo(26, 124); g.stroke();
+        g.fillStyle = c.dark;
+        g.beginPath(); g.moveTo(38, 64); g.quadraticCurveTo(50, 40, 62, 64);
+        g.quadraticCurveTo(50, 72, 38, 64); g.fill();
+        g.fillStyle = '#0a0c14';
+        g.beginPath(); g.ellipse(50, 62, 11, 13, 0, 0, 7); g.fill();
+        drawGlowEye(g, 45, 62, 4, c.glow);
+        drawGlowEye(g, 55, 62, 4, c.glow);
+        g.fillStyle = c.glow; // runes
+        g.beginPath(); g.arc(50, 94, 2, 0, 7); g.arc(46, 104, 1.6, 0, 7); g.arc(54, 104, 1.6, 0, 7); g.fill();
+    },
+    dragon(g, c, w) {
+        const cx = w / 2;
+        g.fillStyle = c.dark; // wings
+        g.beginPath();
+        g.moveTo(cx - 10, 60); g.lineTo(8, 28); g.lineTo(20, 58); g.lineTo(6, 64);
+        g.lineTo(24, 76); g.lineTo(14, 92); g.lineTo(cx - 12, 84); g.closePath(); g.fill();
+        g.beginPath();
+        g.moveTo(cx + 10, 60); g.lineTo(w - 8, 28); g.lineTo(w - 20, 58); g.lineTo(w - 6, 64);
+        g.lineTo(w - 24, 76); g.lineTo(w - 14, 92); g.lineTo(cx + 12, 84); g.closePath(); g.fill();
+        g.strokeStyle = shade(c.dark, -0.2); g.lineWidth = 2; // wing ribs
+        g.beginPath();
+        g.moveTo(cx - 10, 60); g.lineTo(8, 28); g.moveTo(cx - 10, 60); g.lineTo(6, 64); g.moveTo(cx - 10, 60); g.lineTo(14, 92);
+        g.moveTo(cx + 10, 60); g.lineTo(w - 8, 28); g.moveTo(cx + 10, 60); g.lineTo(w - 6, 64); g.moveTo(cx + 10, 60); g.lineTo(w - 14, 92);
+        g.stroke();
+        g.strokeStyle = c.main; g.lineWidth = 10; g.lineCap = 'round'; // tail
+        g.beginPath(); g.moveTo(cx, 100); g.quadraticCurveTo(cx + 32, 122, cx + 42, 110); g.stroke();
+        g.fillStyle = c.main; // body
+        g.beginPath(); g.ellipse(cx, 92, 22, 30, 0, 0, 7); g.fill();
+        g.fillStyle = c.light; // belly
+        g.beginPath(); g.ellipse(cx, 96, 11, 22, 0, 0, 7); g.fill();
+        g.strokeStyle = c.main; g.lineWidth = 16; g.lineCap = 'round'; // neck
+        g.beginPath(); g.moveTo(cx, 78); g.quadraticCurveTo(cx - 6, 50, cx - 2, 40); g.stroke();
+        g.fillStyle = c.main; // head
+        g.beginPath(); g.ellipse(cx - 2, 36, 16, 13, -0.2, 0, 7); g.fill();
+        g.beginPath(); g.moveTo(cx - 16, 36); g.lineTo(cx - 32, 40); g.lineTo(cx - 14, 44); g.closePath(); g.fill(); // snout
+        g.fillStyle = ARMOR; // horns
+        g.beginPath(); g.moveTo(cx + 6, 28); g.lineTo(cx + 16, 14); g.lineTo(cx + 10, 30); g.closePath();
+        g.moveTo(cx - 4, 26); g.lineTo(cx + 2, 12); g.lineTo(cx + 2, 28); g.closePath(); g.fill();
+        drawGlowEye(g, cx - 6, 34, 5, c.glow);
+        g.save(); g.shadowColor = c.glow; g.shadowBlur = 12; g.fillStyle = c.glow;
+        g.beginPath(); g.arc(cx - 30, 41, 3, 0, 7); g.fill(); g.restore(); // nostril fire
+        g.strokeStyle = ARMOR; g.lineWidth = 3; g.lineCap = 'round'; // claws
+        g.beginPath();
+        g.moveTo(cx - 8, 118); g.lineTo(cx - 12, 126); g.moveTo(cx, 118); g.lineTo(cx, 127);
+        g.moveTo(cx + 8, 118); g.lineTo(cx + 12, 126); g.stroke();
+    }
+};
+
+// Render a creature for a type once and cache it on the type.
+function makeEnemySprite(type) {
+    const isDragon = type.form === 'dragon';
+    const w = isDragon ? 150 : ESW;
+    const h = isDragon ? 132 : ESH;
+    const cnv = document.createElement('canvas');
+    cnv.width = w; cnv.height = h;
+    const g = cnv.getContext('2d');
+    const c = {
+        main: type.color,
+        dark: shade(type.color, -0.38),
+        light: shade(type.color, 0.32),
+        glow: type.glow
+    };
+    (enemyForms[type.form] || enemyForms.ooze)(g, c, w, h);
+    cnv._cacheKey = 'enemy_' + type.form; // used by getShadedSprite's cache
+    return cnv;
+}
+
+// Build every creature sprite up front
+enemyTypes.forEach(t => { t.sprite = makeEnemySprite(t); });
+bossType.sprite = makeEnemySprite(bossType);
 
 // Build a simple glowing stairway marker (arrow over steps) on a transparent canvas.
 function makeStairsSprite(color, up) {
@@ -902,7 +1141,7 @@ function renderSprites(zBuffer) {
         let img, config;
         if (sprite.type === 'enemy') {
             const t = sprite.enemyRef.type;
-            img = getTintedSprite(enemySprite, t.color) || enemySprite; // colour per enemy type
+            img = t.sprite; // bespoke procedurally-drawn creature
             config = { heightScale: t.scale, lift: 0.0, bobAmp: 0.03, bobSpeed: 7, swayAmp: 0.02, hover: false };
         } else if (sprite.type === 'weapon') {
             img = weaponSprite;
