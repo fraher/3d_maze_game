@@ -723,7 +723,7 @@ let floorBanner = null;     // { text, until } transient on-screen floor label
 let playerWeapon = localStorage.getItem('weapon') || null;
 
 // Game State
-let gameState = 'running'; // 'running', 'gameover', 'victory'
+let gameState = 'intro'; // 'intro', 'running', 'gameover', 'victory'
 
 // ========================
 // 8. Define Enemy Class
@@ -1509,6 +1509,8 @@ function checkHealthPotionPickup() {
 // ========================
 
 function attack() {
+    if (gameState !== 'running') return; // ignore during story / end screens
+
     if (!playerWeapon) {
         console.log('No weapon to attack with!');
         return;
@@ -1656,21 +1658,27 @@ function drawMiniMap() {
 // For this example, we redirect to separate HTML files.
 
 function showGameOver() {
+    if (gameState !== 'running') return; // only trigger once
     gameState = 'gameover';
-    // Store the final score in Local Storage
     localStorage.setItem('finalScore', score);
-    // Redirect to gameover.html
-    window.location.href = 'gameover.html';
+    // Reveal the in-game death screen with the floor reached and final score
+    const floorEl = document.getElementById('deathFloor');
+    if (floorEl) floorEl.textContent = currentLevel;
+    const scoreEl = document.getElementById('deathScore');
+    if (scoreEl) scoreEl.textContent = score;
+    const overlay = document.getElementById('deathOverlay');
+    if (overlay) overlay.classList.remove('hidden');
 }
 
 function showVictory() {
+    if (gameState !== 'running') return; // only trigger once
     gameState = 'victory';
-    // Store the final score
     localStorage.setItem('finalScore', score);
-    // Set a victory flag
-    localStorage.setItem('victory', 'true');
-    // Redirect to gameover.html to display victory message
-    window.location.href = 'gameover.html';
+    // Reveal the in-game epilogue with the final score
+    const scoreEl = document.getElementById('epilogueScore');
+    if (scoreEl) scoreEl.textContent = score;
+    const overlay = document.getElementById('epilogueOverlay');
+    if (overlay) overlay.classList.remove('hidden');
 }
 
 // ========================
@@ -1807,6 +1815,35 @@ function startGame() {
 }
 
 startGame();
+
+// ========================
+// 23b. Story Screens (intro + epilogue)
+// ========================
+
+function setupStory() {
+    const beginBtn = document.getElementById('beginButton');
+    const playAgainBtn = document.getElementById('playAgainButton');
+    const storyOverlay = document.getElementById('storyOverlay');
+
+    if (beginBtn) {
+        beginBtn.addEventListener('click', function () {
+            if (storyOverlay) storyOverlay.classList.add('hidden');
+            // The click is a user gesture: (re)start audio and begin play
+            try { soundManager.audioCtx.resume(); } catch (e) { /* ignore */ }
+            floorBanner = { text: 'Floor 1', until: performance.now() + 1800 };
+            gameState = 'running';
+        });
+    }
+
+    // Both "Play Again" (epilogue) and "Rise Again" (death) reset via reload,
+    // which cleanly rebuilds all floor state and shows the intro again.
+    const restartBtn = document.getElementById('restartButton');
+    [playAgainBtn, restartBtn].forEach(function (btn) {
+        if (btn) btn.addEventListener('click', function () { window.location.reload(); });
+    });
+}
+
+setupStory();
 
 // ========================
 // 24. Start the Game Loop

@@ -121,6 +121,82 @@ canvas {
     display: none;
 }
 
+/* ===== Story screens (intro + epilogue) ===== */
+.story {
+    z-index: 30; /* above the on-screen touch controls */
+}
+
+.story-content {
+    background: linear-gradient(160deg, #14121f, #0b1418);
+    color: #d8e6e3;
+    width: 560px;
+    max-width: calc(100vw - 32px);
+    max-height: 86vh;
+    overflow-y: auto;
+    text-align: left;
+    padding: 32px 36px;
+    border: 1px solid #2f6f6a;
+    border-radius: 10px;
+    box-shadow: 0 0 44px rgba(40, 170, 155, 0.28);
+}
+
+.story-content h1 {
+    color: #6fe7da;
+    text-align: center;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    font-size: 34px;
+    margin: 0 0 18px;
+    text-shadow: 0 0 16px rgba(80, 230, 210, 0.6);
+}
+
+.story-text p {
+    color: #cfe0dd;
+    line-height: 1.55;
+    font-size: 16px;
+    margin: 0 0 14px;
+}
+
+.story-text strong { color: #9ef0e3; }
+.story-text em { color: #b9a7ff; }
+
+.story-hint {
+    text-align: center;
+    color: #8fb7b1;
+    font-size: 13px;
+    margin: 18px 0 0;
+}
+
+.story-score {
+    text-align: center;
+    color: #cfe0dd;
+    font-size: 17px;
+    margin: 16px 0 0;
+}
+
+.story-score span {
+    color: #ffd27a;
+    font-weight: bold;
+}
+
+.story-content button {
+    display: block;
+    margin: 22px auto 0;
+    padding: 12px 28px;
+    font-size: 16px;
+    letter-spacing: 1px;
+    cursor: pointer;
+    color: #eafffb;
+    background: #1f6f66;
+    border: 1px solid #6fe7da;
+    border-radius: 6px;
+    transition: background-color 0.2s ease;
+}
+
+.story-content button:hover {
+    background: #2a8c80;
+}
+
 .overlay-content {
     background-color: #fff;
     padding: 40px;

@@ -18,6 +18,51 @@
         <button id="attackButton" class="attack-button" aria-label="Attack">&#9876;</button>
     </div>
 
+    <!-- Intro story (shown before the game begins) -->
+    <div id="storyOverlay" class="overlay story">
+        <div class="overlay-content story-content">
+            <h1>Overtaken</h1>
+            <div class="story-text">
+                <p>For a thousand years the kingdom of <strong>Eldenmoor</strong> knew peace &mdash; until the night the sky tore open.</p>
+                <p>Down from the wound between the stars came the alien horde. They overran the royal castle in a single night and dragged the King, the Queen, and their children into its depths.</p>
+                <p>You are <strong>Sir Aldric</strong>, the last knight left standing. You take up your blade and breach the castle gate. Eleven floors rise above you, each crawling with invaders from beyond the stars.</p>
+                <p>Climb. Find the stairs. Free the royal family. And discover what the horde truly crossed the void to claim &mdash; for something ancient sleeps beneath these stones, and the aliens mean to wake it.</p>
+            </div>
+            <p class="story-hint">Move: W A S D / Arrows &middot; Attack: Space (or the on-screen button) &middot; Walk onto glowing stairs to climb</p>
+            <button id="beginButton">Begin the Ascent</button>
+        </div>
+    </div>
+
+    <!-- Death screen (shown when the knight falls) -->
+    <div id="deathOverlay" class="overlay story hidden">
+        <div class="overlay-content story-content">
+            <h1>You Have Fallen</h1>
+            <div class="story-text">
+                <p>Your blade slips from your grasp. The alien horde closes over you, and the cold stone of the castle rises to meet you.</p>
+                <p>Somewhere above, the royal family waits in the dark for a rescue that will not come &mdash; not today.</p>
+                <p>But Eldenmoor remembers its knights. From the ruin of the realm another will rise, take up the sword, and climb where you fell.</p>
+                <p>The siege is not yet lost.</p>
+            </div>
+            <p class="story-score">Reached Floor <span id="deathFloor">1</span> &middot; Final Score: <span id="deathScore">0</span></p>
+            <button id="restartButton">Rise Again</button>
+        </div>
+    </div>
+
+    <!-- Epilogue (shown when the dragon is defeated) -->
+    <div id="epilogueOverlay" class="overlay story hidden">
+        <div class="overlay-content story-content">
+            <h1>The Kingdom Saved</h1>
+            <div class="story-text">
+                <p>The great dragon shudders and falls, its plasma blood hissing across the cold stone.</p>
+                <p>From the cells below rise familiar voices &mdash; the King, the Queen, the children &mdash; alive. Eldenmoor is saved.</p>
+                <p>But as the beast dies, its eye fixes on you, and a final truth burns into your mind: the invaders never came to conquer. They came for the <strong>Starheart</strong>, the relic your ancestors swore to guard, buried far beneath the castle.</p>
+                <p>You sheathe your sword. For now, the kingdom is whole again &mdash; yet the dragon's dying whisper lingers: <em>&ldquo;Others will come for what sleeps below&hellip;&rdquo;</em></p>
+            </div>
+            <p class="story-score">Final Score: <span id="epilogueScore">0</span></p>
+            <button id="playAgainButton">Play Again</button>
+        </div>
+    </div>
+
     <script src="game.js"></script>
 </body>
 </html>

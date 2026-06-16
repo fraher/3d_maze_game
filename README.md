@@ -134,7 +134,7 @@ Here's an overview of the project's file structure:
 ```
 
 - **index.html**: The main game page where gameplay occurs.
-- **gameover.html**: Displayed when the player dies or wins, showing the final score and an option to restart.
+- **gameover.html**: Legacy end screen from the original flow; the game now shows in-page story overlays for the intro, death, and victory (kept for reference).
 - **levelcomplete.html**: Legacy screen from the original level system; no longer used now that floors transition in place (kept for reference).
 - **game.js**: Contains all the game logic — raycasting/rendering, player and touch controls, enemy behavior, the floor/stairs system, and the procedurally-drawn walls, creatures, dragon boss, and staircases.
 - **styles.css**: Styles for the game, overlays, and on-screen touch controls.
