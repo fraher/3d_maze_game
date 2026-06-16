@@ -19,20 +19,22 @@
 
 ## Overview
 
-Welcome to the **3D Maze Game**, an immersive browser-based game that challenges players to navigate through intricate mazes, battle enemies, and collect weapons across multiple levels. As you progress, each level introduces new mazes with increasing difficulty, more formidable enemies, and additional weapons to enhance your combat capabilities.
+Welcome to the **3D Maze Game**, an immersive browser-based game. The game is a castle of **11 floors**: you start at the bottom and must **explore each floor to find the staircase up**. You can always climb back down the way you came. Each floor introduces a new type of enemy (floor 1 has 1 type, floor 2 has 2, and so on), and enemies persist between visits — they are never refreshed unless you kill them. Reach the top floor to face a massive **alien dragon** in its lair.
 
 ## Features
 
-- **Multiple Levels**: Experience 10 distinct levels, each with unique mazes and escalating difficulty.
-- **Dynamic Enemies**: Face a growing number of enemies with increasing health as you advance.
-- **Weapon System**: Pick up and wield a sword to attack enemies and defend yourself.
+- **A Castle of 11 Floors**: Climb floor by floor by finding the staircase up; descend any time the way you came.
+- **Find the Stairs**: Progression is exploration-based — locate the up-staircase rather than clearing the floor.
+- **Escalating Enemy Variety**: Each floor introduces another enemy type (floor N has N types), with escalating stats.
+- **Persistent Enemies**: Enemies are generated once per floor and never refreshed — survivors stay exactly where you left them when you return.
+- **Boss Fight**: The top floor is one large open lair holding a single massive alien dragon.
+- **Fog-of-War Mini-Map**: The map only reveals areas you have actually seen as you explore.
+- **Weapon System & Power-Ups**: Pick up and wield a sword; collecting more swords increases its power.
 - **Health Potions**: Collect potions to restore health during your journey.
-- **Weapon Power-Ups**: The more swords you collect, the more powerful your weapon becomes.
-- **Sound Effects**: Enjoy dynamic sound effects generated using the Web Audio API, enhancing the gaming experience without external audio files.
-- **Mini-Map**: Keep track of your position, enemies, and weapon placements with an intuitive mini-map.
+- **Sound Effects**: Dynamic sound effects generated using the Web Audio API — no external audio files.
 - **Health Indicators**: Monitor both your health and enemy health through visual indicators.
-- **Responsive Design**: Play seamlessly across various screen sizes and devices.
-- **Game Over & Victory Screens**: Receive clear feedback on your performance with options to restart or proceed.
+- **Mobile & Responsive**: Play on phone, tablet or desktop, with on-screen touch controls on touch devices.
+- **Game Over & Victory Screens**: Clear feedback with options to restart or proceed.
 
 ## Demo
 
@@ -87,7 +89,7 @@ To get started with the **3D Maze Game**, follow the steps below:
 
 ## How to Play
 
-Embark on a thrilling journey through a series of challenging mazes. Your objective is to navigate each maze, eliminate all enemies, collect health potions, and gather as many swords as possible to enhance your combat strength. Survive the onslaught, manage your health, and aim to complete all 10 levels to achieve victory!
+Embark on a climb through an 11-floor castle. On each floor, explore the maze to **find the staircase up** — you do not need to defeat every enemy to progress, and you can always head back down the stairs you came up. Collect health potions and gather swords to grow stronger, manage your health across floors, and reach the top floor to defeat the alien dragon and achieve victory!
 
 ## Game Controls
 
@@ -104,6 +106,14 @@ Master the controls to maneuver through the maze and engage enemies effectively.
  
 - **Pick Up Item**
   - Walk through item to pick it up.
+
+- **Change Floors**
+  - Walk onto a glowing **staircase** to use it: the blue (up) stair climbs to the next floor; the orange (down) stair returns you to the previous one.
+
+- **Mobile / Touch**
+  - **Left joystick**: move (up/down) and turn (left/right).
+  - **Drag on the right** of the screen to turn/look.
+  - **Attack button** (bottom-right) to swing your sword.
 
 - **Additional**
   - **Click to Focus**: Click anywhere on the game canvas to focus and enable keyboard controls.
