@@ -748,17 +748,26 @@ class MusicManager {
         if (!this.ctx) return;
         if (theme) this.theme = theme;
         if (this.playing) { this.setTheme(this.theme); return; }
-        this.playing = true;
-        this.step = 0;
-        this.nextStepTime = this.ctx.currentTime + 0.1;
-        if (this.ctx.state === 'suspended' && this.ctx.resume) this.ctx.resume();
-        this._rampMaster(this._targetGain(), 0.8);
         const self = this;
-        this.timer = setInterval(function () { self._scheduler(); }, 25);
+        const begin = function () {
+            if (self.playing) return;
+            self.playing = true;
+            self.step = 0;
+            self.nextStepTime = self.ctx.currentTime + 0.1;
+            self._rampMaster(self._targetGain(), 0.8);
+            self.timer = setInterval(function () { self._scheduler(); }, 25);
+        };
+        // Only begin scheduling once the context is actually running, so the
+        // note times and gain ramp are computed against a live clock.
+        if (this.ctx.state === 'suspended' && this.ctx.resume) {
+            this.ctx.resume().then(begin).catch(begin);
+        } else {
+            begin();
+        }
     }
 
     _targetGain() {
-        return this.theme === 'boss' ? 0.42 : 0.34;
+        return this.theme === 'boss' ? 0.6 : 0.5;
     }
 
     setTheme(theme) {
@@ -1999,6 +2008,17 @@ function setupStory() {
     const beginBtn = document.getElementById('beginButton');
     const playAgainBtn = document.getElementById('playAgainButton');
     const storyOverlay = document.getElementById('storyOverlay');
+
+    // Fallback: resume the audio context on the first interaction of any kind,
+    // in case a browser keeps it suspended after the Begin click alone.
+    function unlockAudio() {
+        try {
+            if (soundManager.audioCtx.state === 'suspended') soundManager.audioCtx.resume();
+        } catch (e) { /* ignore */ }
+    }
+    ['pointerdown', 'keydown', 'touchstart'].forEach(function (ev) {
+        window.addEventListener(ev, unlockAudio);
+    });
 
     if (beginBtn) {
         beginBtn.addEventListener('click', function () {
