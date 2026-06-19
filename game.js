@@ -912,9 +912,9 @@ class Enemy {
         const distance = Math.sqrt(dx * dx + dy * dy);
 
         if (distance > 0.5) {
-            // Move towards the player
-            const moveX = (dx / distance) * this.speed;
-            const moveY = (dy / distance) * this.speed;
+            // Move towards the player (scaled to frame time)
+            const moveX = (dx / distance) * this.speed * frameScale;
+            const moveY = (dy / distance) * this.speed * frameScale;
 
             const newX = this.x + moveX;
             const newY = this.y + moveY;
@@ -929,8 +929,8 @@ class Enemy {
                 this.y = newY;
             }
         } else {
-            // Attack the player
-            player.health -= this.type.damage; // Damage scales with enemy type
+            // Attack the player (damage per second, scaled to frame time)
+            player.health -= this.type.damage * frameScale; // Damage scales with enemy type
             soundManager.playDamageSound(); // Play damage sound
             if (player.health <= 0) {
                 player.health = 0;
@@ -1566,6 +1566,7 @@ function movePlayer() {
     moveStep += touchInput.move * player.speed;
     if (moveStep > player.speed) moveStep = player.speed;
     if (moveStep < -player.speed) moveStep = -player.speed;
+    moveStep *= frameScale; // frame-rate independent
 
     // Calculate new position
     const newX = player.x + Math.cos(player.dir) * moveStep;
@@ -1579,15 +1580,12 @@ function movePlayer() {
         player.y = newY;
     }
 
-    if (keys['ArrowLeft'] || keys['KeyA']) {
-        player.dir -= player.turnSpeed;
-    }
-    if (keys['ArrowRight'] || keys['KeyD']) {
-        player.dir += player.turnSpeed;
-    }
-
-    // Touch turning: joystick X axis plus drag-to-look on the right of the screen
-    player.dir += touchInput.turn * player.turnSpeed;
+    // Keyboard + joystick turning (scaled to frame time); drag-to-look is absolute
+    let turn = 0;
+    if (keys['ArrowLeft'] || keys['KeyA']) turn -= player.turnSpeed;
+    if (keys['ArrowRight'] || keys['KeyD']) turn += player.turnSpeed;
+    turn += touchInput.turn * player.turnSpeed;
+    player.dir += turn * frameScale;
     player.dir += touchInput.lookDelta;
     touchInput.lookDelta = 0; // Consume accumulated drag each frame
 
@@ -1873,12 +1871,21 @@ function checkStairs() {
 // ========================
 
 let gameLoopId;
+let lastFrameTime = 0;
+let frameScale = 1; // movement multiplier normalised to 60 fps (frame-rate independence)
 
-function gameLoop() {
+function gameLoop(timestamp) {
     if (!texturesLoaded) {
         requestAnimationFrame(gameLoop);
         return;
     }
+
+    // Delta-time scaling so the game runs at the same speed on any refresh rate
+    if (timestamp === undefined) timestamp = performance.now();
+    if (!lastFrameTime) lastFrameTime = timestamp;
+    const dt = timestamp - lastFrameTime;
+    lastFrameTime = timestamp;
+    frameScale = Math.min(3, Math.max(0, dt / (1000 / 60))); // clamp to avoid tunneling
 
     if (gameState === 'running') {
         movePlayer();
@@ -1892,7 +1899,7 @@ function gameLoop() {
 
         // Handle sword attack animation
         if (isAttacking) {
-            attackFrame++;
+            attackFrame += frameScale;
             if (attackFrame >= maxAttackFrames) {
                 isAttacking = false; // Reset after animation completes
             }

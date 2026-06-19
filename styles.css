@@ -129,12 +129,12 @@ canvas {
 .story-content {
     background: linear-gradient(160deg, #14121f, #0b1418);
     color: #d8e6e3;
-    width: 560px;
-    max-width: calc(100vw - 32px);
-    max-height: 86vh;
+    width: min(720px, 92vw);
+    max-height: 88vh;
     overflow-y: auto;
     text-align: left;
-    padding: 32px 36px;
+    padding: clamp(24px, 3.5vw, 48px);
+    box-sizing: border-box;
     border: 1px solid #2f6f6a;
     border-radius: 10px;
     box-shadow: 0 0 44px rgba(40, 170, 155, 0.28);
@@ -143,18 +143,18 @@ canvas {
 .story-content h1 {
     color: #6fe7da;
     text-align: center;
-    letter-spacing: 4px;
+    letter-spacing: clamp(2px, 0.6vw, 6px);
     text-transform: uppercase;
-    font-size: 34px;
-    margin: 0 0 18px;
+    font-size: clamp(30px, 5vw, 52px);
+    margin: 0 0 clamp(14px, 2vw, 24px);
     text-shadow: 0 0 16px rgba(80, 230, 210, 0.6);
 }
 
 .story-text p {
     color: #cfe0dd;
-    line-height: 1.55;
-    font-size: 16px;
-    margin: 0 0 14px;
+    line-height: 1.6;
+    font-size: clamp(15px, 1.5vw, 20px);
+    margin: 0 0 clamp(12px, 1.6vw, 18px);
 }
 
 .story-text strong { color: #9ef0e3; }
@@ -163,15 +163,15 @@ canvas {
 .story-hint {
     text-align: center;
     color: #8fb7b1;
-    font-size: 13px;
-    margin: 18px 0 0;
+    font-size: clamp(12px, 1.2vw, 15px);
+    margin: clamp(16px, 2vw, 24px) 0 0;
 }
 
 .story-score {
     text-align: center;
     color: #cfe0dd;
-    font-size: 17px;
-    margin: 16px 0 0;
+    font-size: clamp(16px, 1.7vw, 21px);
+    margin: clamp(14px, 1.8vw, 22px) 0 0;
 }
 
 .story-score span {
@@ -181,9 +181,9 @@ canvas {
 
 .story-content button {
     display: block;
-    margin: 22px auto 0;
-    padding: 12px 28px;
-    font-size: 16px;
+    margin: clamp(18px, 2.5vw, 30px) auto 0;
+    padding: clamp(11px, 1.4vw, 16px) clamp(24px, 3vw, 40px);
+    font-size: clamp(15px, 1.6vw, 19px);
     letter-spacing: 1px;
     cursor: pointer;
     color: #eafffb;
