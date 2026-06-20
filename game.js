@@ -2009,22 +2009,30 @@ function setupStory() {
     const playAgainBtn = document.getElementById('playAgainButton');
     const storyOverlay = document.getElementById('storyOverlay');
 
-    // Fallback: resume the audio context on the first interaction of any kind,
-    // in case a browser keeps it suspended after the Begin click alone.
+    // Unlock Web Audio on the first user gesture. iOS/WebKit (Safari AND Chrome
+    // on iOS) needs an actual buffer played inside the gesture, not just resume().
     function unlockAudio() {
+        const ac = soundManager.audioCtx;
         try {
-            if (soundManager.audioCtx.state === 'suspended') soundManager.audioCtx.resume();
+            if (ac.state === 'suspended' && ac.resume) ac.resume();
+            if (!unlockAudio.done) {
+                const src = ac.createBufferSource();
+                src.buffer = ac.createBuffer(1, 1, 22050); // 1-sample silent buffer
+                src.connect(ac.destination);
+                src.start(0);
+                unlockAudio.done = true;
+            }
         } catch (e) { /* ignore */ }
     }
-    ['pointerdown', 'keydown', 'touchstart'].forEach(function (ev) {
+    ['pointerdown', 'keydown', 'touchstart', 'touchend'].forEach(function (ev) {
         window.addEventListener(ev, unlockAudio);
     });
 
     if (beginBtn) {
         beginBtn.addEventListener('click', function () {
             if (storyOverlay) storyOverlay.classList.add('hidden');
-            // The click is a user gesture: (re)start audio, music, and begin play
-            try { soundManager.audioCtx.resume(); } catch (e) { /* ignore */ }
+            // The tap is a user gesture: unlock audio (incl. iOS), start music, play
+            unlockAudio();
             musicManager.start(currentLevel === bossLevel ? 'boss' : 'exploration');
             floorBanner = { text: 'Floor 1', until: performance.now() + 1800 };
             gameState = 'running';
